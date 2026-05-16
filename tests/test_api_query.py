@@ -7,38 +7,70 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
+from vanna.core.tool import Tool, ToolContext, ToolResult
 
 from vai_agent.bootstrap import create_app
-from vai_agent.config.settings import get_settings
+from vai_agent.config.settings import Settings, get_settings
+from vai_agent.db.connection import ConnectionSettings
 from vai_agent.knowledge import ProfileLoader
-from vai_agent.tools.base import ToolBase, ToolResult
-from vai_agent.tools.explain_schema_tool import ExplainSchemaTool
-from vai_agent.tools.profile_search_tool import ProfileSearchTool
-from vai_agent.users import User, UserResolver, UserResolverMode
-from vai_agent.vai_app.agent_factory import Agent
-from vai_agent.vai_app.tool_registry import ToolRegistry
+from vai_agent.memory.memory_factory import create_memory
+from vai_agent.vanna_integration.factory import build_vanna_runtime
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "profiles"
+
+
+class DummyEF:
+    """Lightweight Chroma embedding function for tests."""
+
+    def __init__(self) -> None:
+        pass
+
+    def name(self) -> str:
+        return "dummy_ef"
+
+    def __call__(self, input: list[str]) -> list[list[float]]:
+        return self._embed(input)
+
+    def embed_documents(self, input: list[str]) -> list[list[float]]:
+        return self._embed(input)
+
+    def embed_query(self, input: list[str]) -> list[list[float]]:
+        return self._embed(input)
+
+    @staticmethod
+    def _embed(texts: list[str]) -> list[list[float]]:
+        return [[float(hash(t) % 100) / 100.0, 0.5, 0.5] for t in texts]
 
 
 class _NoArgs(BaseModel):
     pass
 
 
-class _AdminTool(ToolBase):
-    name = "admin_only"
-    description = "Restricted."
-    args_model = _NoArgs
-    access_groups = ("admin",)
+class _AdminVannaTool(Tool[_NoArgs]):
+    @property
+    def name(self) -> str:
+        return "admin_only"
 
-    def execute(self, args: BaseModel, user: User) -> ToolResult:
-        return self._ok({"ok": True})
+    @property
+    def description(self) -> str:
+        return "Restricted."
 
+    def get_args_schema(self) -> type[_NoArgs]:
+        return _NoArgs
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
+    @property
+    def access_groups(self) -> list[str]:
+        return ["admin"]
+
+    async def execute(self, context: ToolContext, args: _NoArgs) -> ToolResult:
+        return ToolResult(
+            success=True,
+            result_for_llm="{}",
+            ui_component=None,
+            error=None,
+            metadata={},
+        )
 
 
 @pytest.fixture()
@@ -47,26 +79,56 @@ def sample_profile():
 
 
 @pytest.fixture()
-def dev_agent(sample_profile) -> Agent:
-    """An Agent wired with read-only tools and a dev user resolver."""
-    registry = ToolRegistry()
-    registry.register_all([
-        ExplainSchemaTool(sample_profile),
-        ProfileSearchTool(sample_profile),
-        _AdminTool(),
-    ])
-    resolver = UserResolver(
-        UserResolverMode.dev,
-        default_user=User(id="dev", groups=("analyst",)),
+def dev_runtime(sample_profile, tmp_path):
+    settings = Settings(  # type: ignore[call-arg]
+        db_profile_id="sample",
+        profiles_root=str(FIXTURE_ROOT),
+        user_resolver_mode="dev",
+        dev_user_id="dev",
+        dev_user_groups="analyst",
+        llm_provider="none",
+        chroma_persist_dir=str(tmp_path / "c1"),
+        _env_file=None,
     )
-    return Agent(registry, resolver)
+    mem, _ = create_memory(
+        profile_id="sample",
+        persist_dir=tmp_path / "c1",
+        embedding_function=DummyEF(),
+    )
+    cs = ConnectionSettings(
+        _env_file=None,
+        host="127.0.0.1",
+        port=1433,
+        database="db",
+        username="u",
+        password=SecretStr("pw"),
+    )
+    return build_vanna_runtime(
+        profile=sample_profile,
+        connection_settings=cs,
+        settings=settings,
+        chunk_memory=mem,
+        extra_local_tools=[(_AdminVannaTool(), ["admin"])],
+        vanna_embedding_function=DummyEF(),
+    )
 
 
 @pytest.fixture()
-def client_with_agent(dev_agent: Agent) -> Iterator[TestClient]:
+def client_with_agent(dev_runtime) -> Iterator[TestClient]:
     get_settings.cache_clear()
     app = create_app()
-    app.state.agent = dev_agent
+    app.state.agent = dev_runtime
+    app.state.readiness.update(
+        {
+            "ready": True,
+            "profile_ready": True,
+            "agent_ready": True,
+            "memory_ready": True,
+            "tools_ready": True,
+            "llm_ready": False,
+            "errors": [],
+        },
+    )
     with TestClient(app) as c:
         yield c
     get_settings.cache_clear()
@@ -76,23 +138,19 @@ def client_with_agent(dev_agent: Agent) -> Iterator[TestClient]:
 def client_no_agent() -> Iterator[TestClient]:
     get_settings.cache_clear()
     app = create_app()
-    # Explicitly clear startup wiring to test 503 behaviour.
     app.state.agent = None
     app.state.readiness = {
         "ready": False,
         "profile_ready": bool(getattr(app.state, "profile", None)),
         "agent_ready": False,
         "memory_ready": bool(getattr(app.state, "memory", None)),
+        "tools_ready": False,
+        "llm_ready": False,
         "errors": ["agent disabled by test fixture"],
     }
     with TestClient(app) as c:
         yield c
     get_settings.cache_clear()
-
-
-# ---------------------------------------------------------------------------
-# 503 when no agent
-# ---------------------------------------------------------------------------
 
 
 class TestServiceUnavailable:
@@ -105,37 +163,33 @@ class TestServiceUnavailable:
         assert r.status_code == 503
 
 
-# ---------------------------------------------------------------------------
-# List tools
-# ---------------------------------------------------------------------------
-
-
 class TestListTools:
     def test_lists_tools_for_dev_user(self, client_with_agent: TestClient) -> None:
         r = client_with_agent.get("/agent/tools")
         assert r.status_code == 200
         body = r.json()
         names = {t["name"] for t in body["tools"]}
-        # Dev user is in 'analyst' group → no access to 'admin_only'
-        assert names == {"explain_schema", "profile_search"}
+        assert names == {
+            "explain_schema",
+            "profile_search",
+            "run_sql",
+            "secure_run_sql",
+            "search_saved_correct_tool_uses",
+        }
 
     def test_each_tool_has_schema(self, client_with_agent: TestClient) -> None:
         r = client_with_agent.get("/agent/tools")
         body = r.json()
         for tool in body["tools"]:
-            assert tool["args_schema"]  # JSON schema dict
+            assert tool["args_schema"]
             assert "name" in tool and "description" in tool
-
-
-# ---------------------------------------------------------------------------
-# Invoke
-# ---------------------------------------------------------------------------
 
 
 class TestInvoke:
     def test_explain_schema_lists_tables(self, client_with_agent: TestClient) -> None:
         r = client_with_agent.post(
-            "/agent/tools/explain_schema/invoke", json={"args": {}},
+            "/agent/tools/explain_schema/invoke",
+            json={"args": {}},
         )
         assert r.status_code == 200
         body = r.json()
@@ -163,21 +217,22 @@ class TestInvoke:
         assert body["data"]["total_hits"] > 0
 
     def test_invoke_unknown_tool_returns_200_with_failure(
-        self, client_with_agent: TestClient,
+        self,
+        client_with_agent: TestClient,
     ) -> None:
         r = client_with_agent.post(
-            "/agent/tools/ghost/invoke", json={"args": {}},
+            "/agent/tools/ghost/invoke",
+            json={"args": {}},
         )
-        # The tool dispatcher returns a ToolResult, not an HTTP error.
         assert r.status_code == 200
         body = r.json()
         assert body["success"] is False
-        assert "Unknown tool" in body["error"]
+        assert "not found" in (body["error"] or "").lower()
 
     def test_invalid_args_returns_failure(self, client_with_agent: TestClient) -> None:
         r = client_with_agent.post(
             "/agent/tools/profile_search/invoke",
-            json={"args": {"query": ""}},  # min_length=1 violated
+            json={"args": {"query": ""}},
         )
         assert r.status_code == 200
         body = r.json()
@@ -186,40 +241,70 @@ class TestInvoke:
 
     def test_invoke_admin_only_tool_denied(self, client_with_agent: TestClient) -> None:
         r = client_with_agent.post(
-            "/agent/tools/admin_only/invoke", json={"args": {}},
+            "/agent/tools/admin_only/invoke",
+            json={"args": {}},
         )
         body = r.json()
         assert not body["success"]
-        assert "Access denied" in body["error"]
+        assert "access" in (body["error"] or "").lower()
 
     def test_request_id_in_response_metadata(self, client_with_agent: TestClient) -> None:
         r = client_with_agent.post(
-            "/agent/tools/explain_schema/invoke", json={"args": {}},
+            "/agent/tools/explain_schema/invoke",
+            json={"args": {}},
         )
         body = r.json()
         assert "request_id" in body["metadata"]
 
 
-# ---------------------------------------------------------------------------
-# Header-mode user resolution
-# ---------------------------------------------------------------------------
+@pytest.fixture()
+def header_runtime(sample_profile, tmp_path):
+    settings = Settings(  # type: ignore[call-arg]
+        db_profile_id="sample",
+        profiles_root=str(FIXTURE_ROOT),
+        user_resolver_mode="header",
+        chroma_persist_dir=str(tmp_path / "c2"),
+        _env_file=None,
+    )
+    mem, _ = create_memory(
+        profile_id="sample",
+        persist_dir=tmp_path / "c2",
+        embedding_function=DummyEF(),
+    )
+    cs = ConnectionSettings(
+        _env_file=None,
+        host="127.0.0.1",
+        port=1433,
+        database="db",
+        username="u",
+        password=SecretStr("pw"),
+    )
+    return build_vanna_runtime(
+        profile=sample_profile,
+        connection_settings=cs,
+        settings=settings,
+        chunk_memory=mem,
+        extra_local_tools=[(_AdminVannaTool(), ["admin"])],
+        vanna_embedding_function=DummyEF(),
+    )
 
 
 @pytest.fixture()
-def header_agent(sample_profile) -> Agent:
-    registry = ToolRegistry()
-    registry.register_all([
-        ExplainSchemaTool(sample_profile),
-        _AdminTool(),
-    ])
-    return Agent(registry, UserResolver(UserResolverMode.header))
-
-
-@pytest.fixture()
-def client_header_mode(header_agent: Agent) -> Iterator[TestClient]:
+def client_header_mode(header_runtime) -> Iterator[TestClient]:
     get_settings.cache_clear()
     app = create_app()
-    app.state.agent = header_agent
+    app.state.agent = header_runtime
+    app.state.readiness.update(
+        {
+            "ready": True,
+            "profile_ready": True,
+            "agent_ready": True,
+            "memory_ready": True,
+            "tools_ready": True,
+            "llm_ready": False,
+            "errors": [],
+        },
+    )
     with TestClient(app) as c:
         yield c
     get_settings.cache_clear()
@@ -237,11 +322,15 @@ class TestHeaderModeResolution:
         )
         assert r.status_code == 200
         names = {t["name"] for t in r.json()["tools"]}
-        # 'admin' group was NOT requested → admin_only is excluded
-        assert names == {"explain_schema"}
+        assert names == {
+            "explain_schema",
+            "profile_search",
+            "run_sql",
+            "secure_run_sql",
+            "search_saved_correct_tool_uses",
+        }
 
     def test_admin_group_from_header_is_stripped(self, client_header_mode: TestClient) -> None:
-        # User claims admin, but the resolver strips it. So admin_only is hidden.
         r = client_header_mode.get(
             "/agent/tools",
             headers={"X-User-Id": "evil", "X-User-Groups": "admin,analyst"},

@@ -433,6 +433,13 @@ class SecurityPolicy(_ProfileBase):
     max_rows: int = Field(default=10_000, ge=1)
     default_limit: int = Field(default=100, ge=1)
     user_access_groups: list[AccessGroup] = Field(default_factory=list)
+    tool_access_groups: dict[str, list[str]] | None = Field(
+        default=None,
+        description=(
+            "Optional map ``tool_name -> [group, ...]`` for Vanna ``ToolRegistry`` "
+            "access. When unset, group names are taken from ``user_access_groups``."
+        ),
+    )
     masking_rules: list[MaskingRule] = Field(default_factory=list)
     row_filters: list[RowFilter] = Field(default_factory=list)
     min_group_size: int = Field(default=1, ge=1)

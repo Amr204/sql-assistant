@@ -1,173 +1,115 @@
-# COMPATIBILITY
+# COMPATIBILITY — Vanna 2.0.2 API (source-derived)
 
-Status of third-party API choices and how they map to the master spec
-(`vai-prompt.txt`). Updated whenever a phase introduces or changes a
-dependency.
+This file lists **actual module paths and class names** from the installed
+**Vanna 2.0.2** package (same layout as the official `vanna-2.0.2` sdist / wheel).
+The project does **not** ship `vanna-2.0.2.zip` in-repo; paths below were taken
+from `site-packages/vanna/` and cross-checked with [vanna.ai/docs](https://vanna.ai/docs/).
 
----
-
-## Vanna 2.0 — not installed (intentional)
-
-The master spec asks the project to follow Vanna 2.0's design:
-`Agent`, `ToolRegistry`, `RunSqlTool`, `AgentMemory`, `UserResolver`,
-`AgentConfig`, `AuditConfig`, conversation filters, LLM context
-enhancers, and UI feature flags.
-
-**Decision (Phase 6): the `vanna` Python package is _not_ a dependency
-of this project.** We mirror Vanna's design with our own minimal
-abstractions inside `src/vai_agent/`.
-
-### Why
-
-1. **Discipline rule from the master spec:** "Use the API actually
-   available in the installed version. Do not invent class names. If
-   the documentation differs from the installed package, document it
-   in `COMPATIBILITY.md`." — Section 20 of `vai-prompt.txt`.
-2. **Scope:** Phase 6 focused on tools + HTTP. **ChromaDB-backed memory**
-   and **`vai_agent.llm.*` (OpenRouter over `httpx`)** now exist for downstream
-   NL→SQL work; full LLM planning **above** ``Agent.invoke`` is still wiring a
-   consumer, not bundled as a turnkey HTTP feature.
-3. **Coupling cost:** `vanna` pins `chromadb`, `openai`, `sqlalchemy`
-   and a number of optional vector backends. Installing it now would
-   constrain dependency versions before we know exactly which Vanna
-   sub-modules we will keep.
-4. **Stability:** Vanna's API has churned across 2.x releases. By
-   building our own thin `ToolBase` / `Agent` / `ToolRegistry` and
-   keeping them at the package boundary, a future Vanna adapter can
-   sit *behind* this interface without rewriting callers.
-
-### Mapping our types to Vanna 2.0 concepts
-
-| Vanna 2.0 concept           | This project                                                |
-| --------------------------- | ----------------------------------------------------------- |
-| `Agent`                     | `vai_agent.vai_app.agent_factory.Agent`                     |
-| `ToolRegistry`              | `vai_agent.vai_app.tool_registry.ToolRegistry`              |
-| `RunSqlTool` (LLM-friendly) | `vai_agent.tools.SecureRunSqlTool`                          |
-| `Tool` base class           | `vai_agent.tools.base.ToolBase`                             |
-| `ToolResult`                | `vai_agent.tools.base.ToolResult`                           |
-| `UserResolver`              | `vai_agent.users.UserResolver`                              |
-| Schema explainer            | `vai_agent.tools.ExplainSchemaTool`                         |
-| Knowledge search            | `vai_agent.tools.ProfileSearchTool`                         |
-| `AgentMemory` (persistent)  | `vai_agent.memory.memory_factory.AgentMemory` — Chroma `PersistentClient` |
-| LLM context enhancer        | `vai_agent.vai_app.context_enhancer.ContextEnhancer` (Phase 8) |
-| Conversation filters        | _Not implemented yet — partly subsumed by `SqlPolicyEngine`_|
-| `AuditConfig`               | _Not implemented yet — Phase 6's logging only_              |
-| UI feature flags            | _Not implemented yet_                                       |
-
-### How to add real Vanna later
-
-The recommended adapter shape:
-
-```python
-# Sketch (NOT yet implemented).
-from vanna.base import VannaBase
-from vai_agent.tools.base import ToolBase
-
-class VannaRunSqlAdapter(ToolBase):
-    name = "vanna_run_sql"
-    args_model = SecureRunSqlArgs
-    def __init__(self, vn: VannaBase, ...): ...
-    def execute(self, args, user): ...
-```
-
-Then register it alongside (or instead of) `SecureRunSqlTool` in the
-agent factory. Everything else (HTTP, registry, user resolver, access
-groups) stays unchanged.
+**Note:** `vanna.__version__` in the package is the string `"0.1.0"` even for the
+2.0.2 release; use `import importlib.metadata as m; m.version("vanna")` for the
+PyPI version.
 
 ---
 
-## Installed versions of relevant dependencies
+## Core agent & tools
 
-| Package           | Pinned range            | Installed (verified at Phase 6)   | Notes                                                  |
-| ----------------- | ----------------------- | --------------------------------- | ------------------------------------------------------ |
-| `fastapi`         | `>=0.115,<1.0`          | 0.136.1                           | Stable API surface used.                               |
-| `pydantic`        | `>=2.7,<3.0`            | 2.13.4                            | v2 only; uses `model_dump`, `model_validate`, `model_copy`. |
-| `pydantic-settings` | `>=2.3,<3.0`          | 2.14.1                            | Used for `BaseSettings` in both `Settings` and `ConnectionSettings`. |
-| `sqlglot`         | `>=20.0`                | 30.8.0                            | `walk()` yields **plain nodes** in 30.x (not `(node, parent, key)` tuples). Documented in `sql_policy.py`. |
-| `pyodbc`          | `>=5.0,<6.0`            | 5.3.0                             | DSN-less connection string. `ApplicationIntent=ReadOnly` always appended. |
-| `pandas`          | `>=2.0,<3.0`            | 2.3.3                             | Used for `read_sql(chunksize=...)`; `pd.NaT` and numpy scalars normalised in the runner. |
-| `pyyaml`          | `>=6.0,<7.0`            | 6.0.3                             | `safe_load` / `safe_dump` only; `allow_unicode=True` for Arabic content. |
-| `vanna`           | _not installed_         | —                                 | Intentional. See section above.                        |
-| `openai`          | _not installed_         | —                                 | Not required — OpenRouter is called with raw `POST /chat/completions` via **`httpx`**. |
-| `httpx`           | `>=0.27,<1.0` (runtime) | —                                 | OpenAI-compatible OpenRouter HTTP client in `llm/openrouter_service.py`; also used implicitly by FastAPI test clients when applicable. |
-| `chromadb`        | `>=1.5,<2.0`            | 1.5.9                             | Phase 7. 0.6.x was incompatible with pydantic 2.13.x (see note). 1.5.x custom EFs require `name()`, `embed_query()`, `embed_documents()` in addition to `__call__`. |
+| Concept | Canonical import (2.0.2 source) |
+|--------|-----------------------------------|
+| Agent | `from vanna.core.agent import Agent` — implementation in `vanna.core.agent.agent` |
+| Agent config | `from vanna.core.agent import AgentConfig` |
+| Tool registry | `from vanna.core.registry import ToolRegistry` — defined in `vanna.core.registry` |
+| Tool ABC | `from vanna.core.tool import Tool` — `vanna.core.tool.base` |
+| Tool models | `from vanna.core.tool import ToolCall, ToolContext, ToolResult, ToolSchema` — `vanna.core.tool.models` |
+| Register tools | `ToolRegistry.register_local_tool(tool, access_groups: list[str])` |
+
+Public re-exports also appear on `vanna.core` (`from vanna.core import Agent, ToolRegistry, ToolCall, …`).
 
 ---
 
-## API quirks worth recording
+## SQL execution
 
-These are non-obvious behaviours of the *installed* package versions
-that this project relies on. If a future upgrade changes any of them,
-the documented behaviour must be re-verified.
+| Concept | Canonical import |
+|--------|------------------|
+| Run SQL tool | `from vanna.tools.run_sql import RunSqlTool` — also `from vanna.tools import RunSqlTool` |
+| SQL runner ABC | `from vanna.capabilities.sql_runner import SqlRunner` — `vanna.capabilities.sql_runner.base` |
+| Run SQL args model | `from vanna.capabilities.sql_runner import RunSqlToolArgs` — `vanna.capabilities.sql_runner.models` |
 
-### `sqlglot` 30.x
-
-* `expression.walk()` is a flat iterator over nodes, not a
-  `(node, parent, key)` tuple iterator.
-* `SELECT TOP N` parses into a `Select` with `args["limit"]` of type
-  `exp.Limit` (no separate `Top` node).
-* Three-part table names map to `Table(this=…, db=schema, catalog=database)`
-  — we treat any non-empty `catalog` as a cross-database reference.
-* `COUNT(*)` contains an `exp.Star` node. The SQL policy currently
-  blocks any `Star` reference — a conservative choice, documented as a
-  Phase-7+ refinement.
-
-### `pyodbc` 5.3.0
-
-* `pyodbc.Connection` has no Python-visible attribute named `timeout`
-  on the *class*; the attribute is set on instances after connect and
-  controls query-level deadlines.
-* SQLSTATE for client-side timeouts is `HYT00`; SQL Server's
-  query-cancel is `HY008`. The runner accepts both.
-
-### `pandas` 2.3.3
-
-* `pd.read_sql(chunksize=N)` returns a generator; we consume it with
-  a manual loop instead of relying on `len(df)` semantics that differ
-  between scalar and chunked returns.
-* `pd.NaT` is the only non-scalar nullable value the runner has to
-  special-case during normalisation.
+This app injects a custom `SqlRunner` (`PolicySqlRunner`) that applies local SQL/PII policy **before** any database call, then exposes it through **two** `RunSqlTool` registrations: primary **`run_sql`** and optional alias **`secure_run_sql`** (same runner, same `access_groups`).
 
 ---
 
-### `chromadb` 0.6.3 vs 1.5.9
+## Agent memory (persistent Chroma)
 
-We initially installed `chromadb>=0.5,<1.0` (got 0.6.3).  It was
-incompatible with pydantic 2.13.x: `chromadb.types.Collection.get_model_fields()`
-called `self.model_fields` on an **instance** rather than the class,
-which pydantic 2.13 surfaces as a `DeprecatedInstanceProperty` object
-instead of a dict → `AttributeError`.  We upgraded to `chromadb>=1.5,<2.0`
-(got 1.5.9).
+| Concept | Canonical import |
+|--------|------------------|
+| AgentMemory ABC | `from vanna.capabilities.agent_memory import AgentMemory` — `vanna.capabilities.agent_memory.base` |
+| Memory models | `from vanna.capabilities.agent_memory import TextMemory, ToolMemory, …` — `vanna.capabilities.agent_memory.models` |
+| **Official Chroma implementation** | `from vanna.integrations.chromadb import ChromaAgentMemory` — implementation in `vanna.integrations.chromadb.agent_memory` |
 
-API changes in 1.5.x for custom `EmbeddingFunction` subclasses:
+`ChromaAgentMemory` uses `chromadb.PersistentClient` internally (`persist_directory`, `collection_name`, optional `embedding_function`). This app sets `persist_directory` to `CHROMA_PERSIST_DIR` and `collection_name` to `vanna_agent_<profile_id>`.
 
-| Method         | 0.6.x | 1.5.x |
-| -------------- | ----- | ----- |
-| `__call__`     | required (used for both add and query) | still called for add |
-| `embed_query`  | not required | **required** for `query()` calls |
-| `embed_documents` | not required | required for `add()` / `upsert()` |
-| `name()`       | not required | **required** for collection validation |
-| `__init__()`   | optional | **required** (deprecation warning if absent) |
+Other first-party memory backends in the same tree (not used here): `WeaviateAgentMemory`, `QdrantAgentMemory`, `FAISSAgentMemory`, `PineconeAgentMemory`, `MilvusAgentMemory`, `MarqoAgentMemory`, `OpenSearchAgentMemory`, `AzureAISearchAgentMemory`, `CloudAgentMemory` (premium), and in-memory `DemoAgentMemory` under `vanna.integrations.local.agent_memory`.
 
-The `DummyEF` in tests implements all five.  The production path uses
-`DefaultEmbeddingFunction` (all-MiniLM-L6-v2 via ONNX, auto-cached in
-`~/.cache/chroma/onnx_models/`), which already satisfies the 1.5.x protocol.
+---
 
-## Items deliberately deferred
+## User resolution
 
-The following spec items from `vai-prompt.txt` are **not** implemented
-in Phase 6; each lists which phase will pick it up:
+| Concept | Canonical import |
+|--------|------------------|
+| UserResolver ABC | `from vanna.core.user import UserResolver` — `vanna.core.user.resolver` |
+| User model | `from vanna.core.user import User` — `vanna.core.user.models` |
+| Request context | `from vanna.core.user import RequestContext` — `vanna.core.user.request_context` |
 
-| Spec item                           | Planned phase |
-| ----------------------------------- | ------------- |
-| OpenRouter / OpenAI-compatible LLM  | Phase 7       |
-| Custom LLM context enhancer         | Phase 8 (done) |
-| LLM-driven planner (NL → tool call) | Phase 7       |
-| `AgentMemory` (ChromaDB)            | Phase 7       |
-| Memory seeding script               | Phase 7       |
-| `examples.yaml` benchmark runner    | Phase 9 (`scripts/benchmark_questions.py`) |
-| Rate limiting (per user / IP / group)| Phase 8      |
-| Audit log persistence               | Phase 8       |
-| FastAPI Web UI                      | Phase 9       |
-| OIDC / JWT user resolver            | Phase 9       |
-| Mermaid diagrams in `ARCHITECTURE.md` | Phase 9     |
+This app supplies `LegacyUserResolverBridge(UserResolver)` wrapping `vai_agent.users.UserResolver`.
+
+---
+
+## LLM (OpenAI-compatible / OpenRouter)
+
+| Concept | Canonical import |
+|--------|------------------|
+| LlmService ABC | `from vanna.core.llm import LlmService` — `vanna.core.llm.base` |
+| Request/response models | `from vanna.core.llm import LlmRequest, LlmResponse, LlmMessage, LlmStreamChunk` |
+| OpenAI-compatible client | `from vanna.integrations.openai import OpenAILlmService` — class in `vanna.integrations.openai.llm` (`base_url`, `api_key`, `model`, …) |
+| Mock LLM | `from vanna.integrations.mock import MockLlmService` |
+
+---
+
+## FastAPI server (stock Vanna)
+
+| Concept | Canonical import |
+|--------|------------------|
+| FastAPI factory | `from vanna.servers.fastapi import VannaFastAPIServer` — `vanna.servers.fastapi.app` |
+| Chat handler | `from vanna.servers.base import ChatHandler` (re-exported from `vanna.servers`) |
+| Chat request/response | `from vanna.servers.base import ChatRequest, ChatResponse` |
+| Route registration (stock) | `from vanna.servers.fastapi.routes import register_chat_routes` — mounts **`POST /api/vanna/v2/chat_poll`**, **`POST /api/vanna/v2/chat_sse`**, **`WS /api/vanna/v2/chat_websocket`**, and stock **`GET /`** (bundled UI) |
+| Route registration (this repo) | `from vai_agent.vanna_integration.vanna_fastapi_routes import register_chat_routes` — same paths; re-raises **`HTTPException`** from the chat handler so 401/400/429 are not coerced into 500 |
+
+This repository keeps its own FastAPI app (`vai_agent.bootstrap.create_app`) and first-party routes (`/agent/*`, `/health`, `/ready`). **`POST /chat`** and the official Vanna routes use **`GuardedChatHandler`**, a subclass of **`ChatHandler`** that overrides **`handle_stream`** to apply user resolution, rate limits, concurrency, prompt-injection checks, and audit records **before** **`Agent.send_message`**. The handler passed to **`register_chat_routes`** is that **`GuardedChatHandler`** instance.
+
+**SSE / WebSocket note:** when limits or injection checks fail inside the streaming generator, stock Vanna would surface some failures only as SSE JSON errors. This fork re-raises **`HTTPException`** from **`chat_poll`**; for **`chat_sse`**, failures on the first stream chunk may still be delivered as an SSE error payload depending on ASGI behaviour—prefer **`chat_poll`** for strict HTTP status codes.
+
+## Runtime API inspect (installed vanna; May 2026)
+
+Captured with `uv run python` against the locked environment:
+
+- `vanna.__file__` → site-packages `vanna/__init__.py`
+- `inspect.signature(Agent)` → constructor takes `llm_service`, `tool_registry`, `user_resolver`, `agent_memory`, optional `conversation_store`, `config`, `system_prompt_builder`, `lifecycle_hooks`, `llm_middlewares`, optional `workflow_handler`, `error_recovery_strategy`, `context_enrichers`, optional `llm_context_enhancer`, `conversation_filters`, optional `observability_provider`, optional `audit_logger`
+- `inspect.signature(ChatHandler)` → `(agent: vanna.core.agent.agent.Agent)`
+- `dir(ChatHandler)` stream/poll API: **`handle_poll`**, **`handle_stream`**
+- `vanna.tools.run_sql` → package module `vanna.tools.run_sql`
+- `inspect.signature(ToolRegistry.register_local_tool)` → `(self, tool: Tool[Any], access_groups: List[str]) -> None`
+
+The vendored tree `vanna-2.0.2/` in this workspace mirrors the PyPI 2.0.2 layout for offline reference; **ruff** excludes it from lint (`pyproject.toml` `extend-exclude`).
+
+---
+
+| Concept | Canonical import |
+|--------|------------------|
+| In-memory store | `from vanna.integrations import MemoryConversationStore` — `vanna.integrations.local` |
+
+---
+
+## Legacy stack (Vanna 0.x)
+
+Under `vanna.legacy.*` (e.g. `vanna.legacy.chromadb.ChromaDB_VectorStore`, `vanna.legacy.base.VannaBase`). **Not used** by this project’s 2.x Agent path.

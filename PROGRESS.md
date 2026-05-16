@@ -7,7 +7,7 @@ Live tracker for the phased delivery of SQL Assistant. The master spec is
 
 ## Current phase
 
-**Phase 10 — Final hardening. Status: ✅ complete (lint + 392 tests green).**
+**Phase 10 — Final hardening. Status: ✅ complete (lint + 404 tests green).**
 
 Goal: production wiring, readiness probing, stricter SQL policy
 enforcement, complete dbnwind profile facets, benchmark hardening,
@@ -15,6 +15,7 @@ operational docs, and CI.
 
 ### Completed tasks (Phase 10)
 
+- [x] **`POST /chat` uses Vanna stock workflow**: `ChatHandler.handle_poll` → `Agent.send_message`; official routes via `register_chat_routes` (`/api/vanna/v2/*`).
 - [x] **Startup wiring in `create_app()`**:
       reads `DB_PROFILE_ID`/`PROFILES_ROOT`, loads profile, builds
       `ConnectionSettings` from `DB_*`, constructs `UserResolver` from

@@ -31,6 +31,8 @@ def test_ready_returns_503_when_not_ready() -> None:
         "profile_ready": True,
         "agent_ready": False,
         "memory_ready": True,
+        "tools_ready": False,
+        "llm_ready": False,
         "errors": ["agent init failed: missing DB env"],
     }
     with TestClient(app) as client:
@@ -46,6 +48,8 @@ def test_ready_returns_200_when_ready() -> None:
         "profile_ready": True,
         "agent_ready": True,
         "memory_ready": True,
+        "tools_ready": True,
+        "llm_ready": False,
         "errors": [],
     }
     with TestClient(app) as client:

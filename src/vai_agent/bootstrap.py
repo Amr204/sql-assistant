@@ -10,38 +10,23 @@ import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
 
+import chromadb
 from fastapi import FastAPI
 
 from vai_agent import __version__
+from vai_agent.api.chat import router as chat_router
 from vai_agent.api.health import router as health_router
 from vai_agent.api.query import router as agent_router
 from vai_agent.config.logging_config import configure_logging
 from vai_agent.config.settings import Settings, get_settings
 from vai_agent.db.connection import get_connection_settings
 from vai_agent.knowledge import ProfileLoader
-from vai_agent.llm import build_chat_completion_client
+from vai_agent.llm.factory import build_chat_completion_client
 from vai_agent.memory import create_memory
-from vai_agent.users import User, UserResolver
-from vai_agent.vai_app import build_agent
+from vai_agent.vanna_integration.factory import build_vanna_runtime
+from vai_agent.vanna_integration.runtime import VaiVannaRuntime
 
 logger = logging.getLogger(__name__)
-
-
-def _parse_dev_groups(raw: str) -> tuple[str, ...]:
-    return tuple(g.strip() for g in raw.split(",") if g.strip())
-
-
-def _build_user_resolver(settings: Settings) -> UserResolver:
-    if settings.user_resolver_mode == "dev":
-        return UserResolver(
-            "dev",
-            default_user=User(
-                id=settings.dev_user_id,
-                email=settings.dev_user_email,
-                groups=_parse_dev_groups(settings.dev_user_groups),
-            ),
-        )
-    return UserResolver(settings.user_resolver_mode)
 
 
 def _initialise_runtime(app: FastAPI, settings: Settings) -> None:
@@ -54,6 +39,8 @@ def _initialise_runtime(app: FastAPI, settings: Settings) -> None:
         "profile_ready": False,
         "agent_ready": False,
         "memory_ready": False,
+        "tools_ready": False,
+        "llm_ready": False,
         "errors": [],
     }
 
@@ -69,36 +56,54 @@ def _initialise_runtime(app: FastAPI, settings: Settings) -> None:
             app.state.profile = profile
             app.state.readiness["profile_ready"] = True
             app.state.readiness["errors"].append(
-                f"profile {settings.db_profile_id!r} not found; fell back to {fallback_id!r}"
+                f"profile {settings.db_profile_id!r} not found; fell back to {fallback_id!r}",
             )
         except Exception as fallback_exc:
             app.state.readiness["errors"].append(f"profile load failed: {exc}")
             app.state.readiness["errors"].append(f"fallback profile load failed: {fallback_exc}")
             return
 
+    chroma_client: chromadb.api.ClientAPI | None = None
     try:
-        connection_settings = get_connection_settings()
-        user_resolver = _build_user_resolver(settings)
-        agent = build_agent(
-            profile=app.state.profile,
-            connection_settings=connection_settings,
-            user_resolver=user_resolver,
-        )
-        app.state.agent = agent
-        app.state.readiness["agent_ready"] = True
-    except Exception as exc:
-        app.state.readiness["errors"].append(f"agent init failed: {exc}")
-
-    try:
-        memory, client = create_memory(
+        memory, chroma_client = create_memory(
             profile_id=settings.db_profile_id,
             persist_dir=settings.chroma_persist_dir,
         )
         app.state.memory = memory
-        app.state.memory_client = client
+        app.state.memory_client = chroma_client
         app.state.readiness["memory_ready"] = True
     except Exception as exc:
         app.state.readiness["errors"].append(f"memory init failed: {exc}")
+        try:
+            persist = Path(settings.chroma_persist_dir)
+            persist.mkdir(parents=True, exist_ok=True)
+            chroma_client = chromadb.PersistentClient(path=str(persist))
+            app.state.memory_client = chroma_client
+        except Exception as client_exc:
+            app.state.readiness["errors"].append(f"chroma client fallback failed: {client_exc}")
+            return
+
+    assert chroma_client is not None
+
+    try:
+        connection_settings = get_connection_settings()
+        runtime = build_vanna_runtime(
+            profile=app.state.profile,
+            connection_settings=connection_settings,
+            settings=settings,
+            chunk_memory=app.state.memory,
+        )
+        app.state.agent = runtime
+        app.state.readiness["agent_ready"] = True
+        app.state.readiness["tools_ready"] = True
+        from vanna.integrations.mock import MockLlmService
+
+        app.state.readiness["llm_ready"] = not isinstance(
+            runtime.vanna.llm_service,
+            MockLlmService,
+        )
+    except Exception as exc:
+        app.state.readiness["errors"].append(f"agent init failed: {exc}")
 
     app.state.readiness["ready"] = (
         app.state.readiness["profile_ready"]
@@ -108,19 +113,7 @@ def _initialise_runtime(app: FastAPI, settings: Settings) -> None:
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
-    """Build and return the FastAPI application.
-
-    Parameters
-    ----------
-    settings:
-        Optional pre-built settings. When ``None``, the cached settings
-        from :func:`vai_agent.config.settings.get_settings` are used.
-
-    Startup wiring loads the configured profile, builds the DB-backed
-    agent, opens memory (ChromaDB), and optionally attaches
-    ``app.state.llm_service`` when OpenRouter is configured. Failures are
-    captured in ``app.state.readiness`` and surfaced by ``GET /ready``.
-    """
+    """Build and return the FastAPI application."""
 
     settings = settings or get_settings()
     configure_logging(settings)
@@ -144,8 +137,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(health_router)
     app.include_router(agent_router)
+    app.include_router(chat_router)
 
     _initialise_runtime(app, settings)
+
+    runtime = getattr(app.state, "agent", None)
+    if isinstance(runtime, VaiVannaRuntime):
+        from vai_agent.vanna_integration.guarded_chat import GuardedChatHandler
+        from vai_agent.vanna_integration.vanna_fastapi_routes import register_chat_routes
+
+        register_chat_routes(
+            app,
+            GuardedChatHandler(runtime.vanna, settings),
+            config={
+                "dev_mode": settings.is_dev,
+                "api_base_url": "",
+            },
+        )
+
     app.state.llm_service = build_chat_completion_client(settings)
 
     logger.info(

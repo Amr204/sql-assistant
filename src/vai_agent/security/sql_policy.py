@@ -44,14 +44,12 @@ import sqlglot.errors
 import sqlglot.expressions as exp
 from pydantic import BaseModel, ConfigDict, Field
 
+from vai_agent.knowledge.profile_models import RowFilter
+
 if TYPE_CHECKING:
     from vai_agent.knowledge.profile_models import SecurityPolicy
 
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Violation / result models
-# ---------------------------------------------------------------------------
 
 
 class PolicyViolation(BaseModel):
@@ -76,6 +74,74 @@ class SqlPolicyResult(BaseModel):
             "``True``. May differ from the original when a TOP clause was added."
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Row-level filter validation (conservative; WHERE AST + predicate text)
+# ---------------------------------------------------------------------------
+
+
+def _where_predicate_sql(stmt: exp.Expression) -> str | None:
+    """Lowercased T-SQL text of the main SELECT ``WHERE`` condition only."""
+
+    if isinstance(stmt, exp.Union):
+        return None
+    if not isinstance(stmt, exp.Select):
+        return None
+    w = stmt.args.get("where")
+    if w is None:
+        return None
+    try:
+        inner = getattr(w, "this", w)
+        return inner.sql(dialect="tsql").lower()
+    except Exception:
+        return None
+
+
+def row_filter_violations(
+    stmt: exp.Expression,
+    row_filters: list[RowFilter],
+    user_groups: list[str] | None,
+) -> list[PolicyViolation]:
+    """Return POL013 violations when a required predicate cannot be proven in ``WHERE``."""
+
+    violations: list[PolicyViolation] = []
+    for rf in row_filters:
+        if rf.applies_to_groups and not any(g in (user_groups or []) for g in rf.applies_to_groups):
+            continue
+        table_referenced = any(
+            t.name.lower() == rf.table.lower() for t in stmt.find_all(exp.Table)
+        )
+        if not table_referenced:
+            continue
+
+        if isinstance(stmt, exp.Union):
+            violations.append(PolicyViolation(
+                code="POL013",
+                severity="error",
+                message="Required row filter cannot be proven on UNION queries.",
+            ))
+            continue
+
+        where_sql = _where_predicate_sql(stmt)
+        expr_norm = " ".join(rf.expression.lower().split())
+
+        if where_sql is None:
+            violations.append(PolicyViolation(
+                code="POL013",
+                severity="error",
+                message="Query does not include a required row-level filter predicate.",
+            ))
+            continue
+
+        if expr_norm not in where_sql:
+            violations.append(PolicyViolation(
+                code="POL013",
+                severity="error",
+                message="Query does not include a required row-level filter predicate in the WHERE clause.",
+            ))
+
+    return violations
 
 
 # ---------------------------------------------------------------------------
@@ -503,21 +569,15 @@ class SqlPolicyEngine:
                 break
 
         # ------------------------------------------------------------------ #
-        # 17. Row filters                                                      #
+        # 17. Row filters (WHERE AST — conservative; no automatic SQL rewrite)
         # ------------------------------------------------------------------ #
-        for rf in self._policy.row_filters:
-            if rf.applies_to_groups and not any(g in (user_groups or []) for g in rf.applies_to_groups):
-                continue
-            table_referenced = any(t.name.lower() == rf.table.lower() for t in stmt.find_all(exp.Table))
-            if not table_referenced:
-                continue
-            if rf.expression.lower() not in sql_stripped.lower():
-                violations.append(PolicyViolation(
-                    code="POL013",
-                    severity="error",
-                    message="Query does not include a required row-level filter predicate.",
-                ))
-                break
+        violations.extend(
+            row_filter_violations(
+                stmt,
+                self._policy.row_filters,
+                user_groups,
+            ),
+        )
 
         # ------------------------------------------------------------------ #
         # Determine outcome                                                    #

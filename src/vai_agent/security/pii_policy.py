@@ -32,24 +32,27 @@ Column matching uses three tiers:
    password, …) are flagged as PII004 warnings. These are informational
    and do **not** block execution.
 
-Access-group logic (allow members of group X to read PII column Y) is
-deferred to Phase 5; the ``user_groups`` parameter is accepted but
-ignored in Phase 4.
+Access-group logic
+------------------
+* **secret** columns: only ``admin`` may reference them.
+* **sensitive** columns: ``admin`` or ``security``.
+* **pii** columns: ``admin`` or ``pii_reader``.
+* Other callers receive blocking violations (severity ``error``) when the column
+  matches a policy tier. Heuristic PII004 warnings are unchanged.
 """
 
 from __future__ import annotations
 
 import logging
 import re
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 import sqlglot
 import sqlglot.errors
 import sqlglot.expressions as exp
 from pydantic import BaseModel, ConfigDict, Field
 
-if TYPE_CHECKING:
-    from vai_agent.knowledge.profile_models import SecurityPolicy
+from vai_agent.knowledge.profile_models import SecurityPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +210,7 @@ class PiiPolicyEngine:
                 continue
             seen_refs.add(ref_key)
 
-            violations.extend(self._check_ref(table_ref, col_name))
+            violations.extend(self._check_ref(table_ref, col_name, user_groups=user_groups))
 
         # Apply heuristics to column names not already flagged from the
         # policy lists.
@@ -240,7 +243,11 @@ class PiiPolicyEngine:
         return PiiCheckResult(allowed=not has_errors, violations=violations)
 
     def _check_ref(
-        self, table_ref: str | None, col_name: str
+        self,
+        table_ref: str | None,
+        col_name: str,
+        *,
+        user_groups: list[str] | None = None,
     ) -> list[PiiViolation]:
         """Return violations for a single column reference."""
         col_lower = col_name.lower()
@@ -249,39 +256,64 @@ class PiiPolicyEngine:
         display = f"{table_ref}.{col_name}" if table_ref else col_name
 
         violations: list[PiiViolation] = []
+        groups = set(user_groups or [])
 
         # --- Secret columns (highest severity) ----------------------------- #
-        # Conservative: if the column name appears in ANY secret entry (even
-        # with a different table qualifier), flag it. This prevents bypassing
-        # policy via table aliases (e.g. `e.BirthDate` where `e` aliases
-        # `Employees`). False positives are preferred over false negatives.
         if (qualified_key and qualified_key in self._secret_q) or col_lower in self._secret_col:
+            if "admin" in groups:
+                return []
             violations.append(PiiViolation(
                 code="PII001",
                 severity="error",
                 column_ref=display,
                 message=f"Column '{display}' is classified as secret and cannot be queried.",
             ))
+            return violations
 
         # --- PII columns ---------------------------------------------------- #
-        elif (qualified_key and qualified_key in self._pii_q) or col_lower in self._pii_col:
+        if (qualified_key and qualified_key in self._pii_q) or col_lower in self._pii_col:
+            if groups & {"admin", "pii_reader"}:
+                return []
             violations.append(PiiViolation(
                 code="PII002",
                 severity="error",
                 column_ref=display,
                 message=f"Column '{display}' contains personally-identifiable information.",
             ))
+            return violations
 
         # --- Sensitive columns ----------------------------------------------- #
-        elif (
+        if (
             (qualified_key and qualified_key in self._sensitive_q)
             or col_lower in self._sensitive_col
         ):
+            if groups & {"admin", "security"}:
+                return []
             violations.append(PiiViolation(
                 code="PII003",
                 severity="error",
                 column_ref=display,
                 message=f"Column '{display}' is classified as sensitive.",
             ))
+            return violations
 
         return violations
+
+
+def can_access_sensitive_column(
+    *,
+    column_name: str,
+    table_name: str,
+    user_groups: list[str],
+    policy: SecurityPolicy,
+) -> bool:
+    """Return True if *user_groups* may reference *column_name* on *table_name* per *policy* tiers."""
+
+    engine = PiiPolicyEngine(policy)
+    return not bool(
+        engine._check_ref(
+            table_name if table_name else None,
+            column_name,
+            user_groups=user_groups,
+        ),
+    )

@@ -4,9 +4,9 @@ A Vanna-powered SQL Assistant for safe, profile-driven querying of SQL Server
 databases. Long-term goal: turn natural-language questions (Arabic / English)
 into validated, audited, read-only `SELECT` statements over a known schema.
 
-> Live phase status lives in [`PROGRESS.md`](./PROGRESS.md). This README mirrors
-> the runnable surface: profiling tools, `/agent`, optionally OpenRouter-backed
-> `app.state.llm_service`.
+> Live phase status lives in [`PROGRESS.md`](./PROGRESS.md). The HTTP surface
+> combines **Vanna 2.x** (`vanna.core.agent.Agent`, `ToolRegistry`, stock
+> `ChatHandler`) with profile-driven SQL policy.
 
 ---
 
@@ -62,8 +62,19 @@ and Chroma memory must all initialise for `status: ok` without HTTP 503.
 
 Interactive API docs: `/docs` and `/redoc` (automatically disabled when
 `APP_ENV=prod`). Agent tooling: **`GET /agent/tools`**,
-**`POST /agent/tools/{tool_name}/invoke`** (needs a reachable SQL Server matching
-your `DB_*` settings).
+**`POST /agent/tools/{tool_name}/invoke`** (rate-limited; needs SQL Server).
+
+**`POST /chat`** uses **`vanna.servers.base.ChatHandler.handle_poll`**, which
+calls **`Agent.send_message`** (full Vanna agent loop — not manual
+`llm_service.send_request` / `tool_registry.execute`).
+
+Official Vanna HTTP endpoints are also registered:
+
+- **`POST /api/vanna/v2/chat_poll`**
+- **`POST /api/vanna/v2/chat_sse`**
+- **`WS /api/vanna/v2/chat_websocket`**
+
+Stock Vanna UI is served at **`GET /`** when routes are registered.
 
 ### Optional: OpenRouter (LLM)
 

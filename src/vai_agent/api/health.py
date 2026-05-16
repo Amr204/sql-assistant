@@ -33,6 +33,8 @@ class ReadyResponse(BaseModel):
     profile_ready: bool
     agent_ready: bool
     memory_ready: bool
+    tools_ready: bool = False
+    llm_ready: bool = False
     errors: list[str] = Field(default_factory=list)
 
 
@@ -62,6 +64,8 @@ def ready(request: Request) -> ReadyResponse | JSONResponse:
         profile_ready=bool(readiness.get("profile_ready")),
         agent_ready=bool(readiness.get("agent_ready")),
         memory_ready=bool(readiness.get("memory_ready")),
+        tools_ready=bool(readiness.get("tools_ready")),
+        llm_ready=bool(readiness.get("llm_ready")),
         errors=[str(e) for e in readiness.get("errors", [])],
     )
     if response.status == "ok":

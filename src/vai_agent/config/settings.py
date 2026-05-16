@@ -119,6 +119,36 @@ class Settings(BaseSettings):
         le=600.0,
         description="Wall-clock HTTP timeout for a single completion request.",
     )
+    rate_limit_per_user_per_minute: int = Field(
+        default=120,
+        ge=1,
+        le=10_000,
+        description="Maximum requests per resolved user id per sliding minute window.",
+    )
+    rate_limit_per_ip_per_minute: int = Field(
+        default=240,
+        ge=1,
+        le=100_000,
+        description="Maximum requests per client IP per sliding minute window.",
+    )
+    rate_limit_per_group_per_minute: int = Field(
+        default=500,
+        ge=1,
+        le=100_000,
+        description="Maximum requests per declared access group per sliding minute window.",
+    )
+    rate_limit_per_user_per_day: int = Field(
+        default=2_000,
+        ge=1,
+        le=1_000_000,
+        description="Maximum requests per user id per rolling 24h window.",
+    )
+    rate_limit_max_concurrent_per_user: int = Field(
+        default=5,
+        ge=1,
+        le=1_000,
+        description="Maximum in-flight tool invocations per user id.",
+    )
 
     @property
     def is_dev(self) -> bool:

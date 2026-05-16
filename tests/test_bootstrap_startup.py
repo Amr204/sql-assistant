@@ -5,9 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from pydantic import SecretStr
 
 import vai_agent.bootstrap as bootstrap
 from vai_agent.config.settings import LlmProvider, Settings
+from vai_agent.db.connection import ConnectionSettings
 from vai_agent.knowledge import ProfileLoader
 
 
@@ -18,6 +20,7 @@ def sample_profile():
 
 def test_create_app_sets_runtime_state_when_startup_succeeds(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
     sample_profile,
 ) -> None:
     settings = Settings(  # type: ignore[call-arg]
@@ -27,25 +30,21 @@ def test_create_app_sets_runtime_state_when_startup_succeeds(
         dev_user_id="dev",
         dev_user_groups="analyst",
         llm_provider=LlmProvider.none,
+        chroma_persist_dir=str(tmp_path / "chroma"),
         _env_file=None,
     )
 
-    class _DummyConn:
-        pass
-
-    class _DummyMemory:
-        pass
-
-    monkeypatch.setattr(bootstrap, "get_connection_settings", lambda: _DummyConn())
     monkeypatch.setattr(
         bootstrap,
-        "build_agent",
-        lambda **kwargs: object(),
-    )
-    monkeypatch.setattr(
-        bootstrap,
-        "create_memory",
-        lambda **kwargs: (_DummyMemory(), object()),
+        "get_connection_settings",
+        lambda: ConnectionSettings(
+            _env_file=None,
+            host="127.0.0.1",
+            port=1433,
+            database="db",
+            username="u",
+            password=SecretStr("pw"),
+        ),
     )
 
     app = bootstrap.create_app(settings)

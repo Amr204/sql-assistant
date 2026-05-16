@@ -261,10 +261,19 @@ class TestAllowListsAndFeatures:
         assert not r.allowed
         assert "POL013" in _codes(r)
 
-
-# ---------------------------------------------------------------------------
-# POL008 — SELECT INTO
-# ---------------------------------------------------------------------------
+    def test_required_row_filter_passes_when_predicate_in_where_clause(self) -> None:
+        policy = SecurityPolicy(
+            row_filters=[{
+                "table": "Orders",
+                "expression": "OrderDate >= '1996-01-01'",
+                "applies_to_groups": ["finance"],
+            }],
+        )
+        r = SqlPolicyEngine(policy).validate(
+            "SELECT OrderID FROM dbo.Orders WHERE OrderDate >= '1996-01-01'",
+            user_groups=["finance"],
+        )
+        assert r.allowed
 
 
 class TestSelectInto:

@@ -1,19 +1,9 @@
-"""Agent — orchestrator that dispatches a tool invocation request.
+"""Legacy synchronous tool dispatcher (unit-test compatibility).
 
-The :class:`Agent` is intentionally *not* LLM-driven in Phase 6. It
-takes a tool name + raw args dict + a resolved :class:`User`, looks the
-tool up in the registry, performs access-control and argument
-validation, then delegates execution to the tool.
-
-LLM-driven planning (e.g. "given a natural-language question, decide
-which tool to call and with what arguments") is reserved for Phase 7+
-when the OpenRouter / vector-store layer is introduced. Adding that
-layer later does not require changing this class: an LLM planner can
-sit *above* :meth:`Agent.invoke`, choosing which tool to call.
-
-The :func:`build_agent` factory wires together everything the agent
-needs (policy engines, MSSQL runner, registered tools, user resolver)
-from a loaded :class:`Profile` and connection settings.
+**Production runtime** uses ``vanna.core.agent.Agent`` built in
+:mod:`vai_agent.vanna_integration.factory` — not this class.  Keep
+:class:`Agent` / :func:`build_agent` for tests and offline tool tests;
+do not wire this module as the primary HTTP stack.
 """
 
 from __future__ import annotations

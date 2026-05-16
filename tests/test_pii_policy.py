@@ -103,6 +103,22 @@ class TestPiiColumns:
         assert r.allowed
 
 
+class TestGroupAccess:
+    def test_secret_column_allowed_for_admin(self) -> None:
+        r = _engine(secret_columns=["Employees.BirthDate"]).check(
+            "SELECT BirthDate FROM dbo.Employees",
+            user_groups=["admin"],
+        )
+        assert r.allowed
+
+    def test_pii_column_allowed_for_pii_reader(self) -> None:
+        r = _engine(pii_columns=["Customers.ContactName"]).check(
+            "SELECT ContactName FROM dbo.Customers",
+            user_groups=["pii_reader"],
+        )
+        assert r.allowed
+
+
 # ---------------------------------------------------------------------------
 # PII003 — Sensitive columns
 # ---------------------------------------------------------------------------

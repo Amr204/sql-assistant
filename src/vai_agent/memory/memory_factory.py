@@ -80,6 +80,12 @@ class AgentMemory:
     def collection_name(self) -> str:
         return self._col.name
 
+    @property
+    def chroma_collection(self) -> chromadb.Collection:
+        """Underlying Chroma collection (for Vanna :class:`~vanna.capabilities.agent_memory.AgentMemory` adapters)."""
+
+        return self._col
+
     def count(self) -> int:
         """Return the number of documents currently stored."""
         return self._col.count()
