@@ -12,6 +12,7 @@ from fastapi import FastAPI
 
 from vai_agent import __version__
 from vai_agent.api.health import router as health_router
+from vai_agent.api.query import router as agent_router
 from vai_agent.config.logging_config import configure_logging
 from vai_agent.config.settings import Settings, get_settings
 
@@ -26,6 +27,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings:
         Optional pre-built settings. When ``None``, the cached settings
         from :func:`vai_agent.config.settings.get_settings` are used.
+
+    The agent itself is *not* built here — it requires a loaded
+    :class:`Profile` and database credentials, both of which are
+    environment-specific. Callers / tests attach an agent to
+    ``app.state.agent`` after construction; until then, the
+    ``/agent/*`` routes respond with ``503 Service Unavailable``.
     """
 
     settings = settings or get_settings()
@@ -39,6 +46,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
 
     app.include_router(health_router)
+    app.include_router(agent_router)
+
+    # No agent attached by default; integration code (or tests) sets this.
+    app.state.agent = None
 
     logger.info(
         "application initialised",

@@ -7,7 +7,248 @@ Live tracker for the phased delivery of SQL Assistant. The master spec is
 
 ## Current phase
 
-**Phase 4 — SQL policy + PII policy. Status: ✅ complete (lint + 186 tests green).**
+**Phase 6 — Agent layer (tools, registry, agent, FastAPI, UserResolver, COMPATIBILITY). Status: ✅ complete (lint + 311 tests green).**
+
+Goal: wire the policy engines (Phase 4) and MSSQL runner (Phase 5) into
+a tool-based agent, expose it over FastAPI, and document the decision
+not to depend on the `vanna` Python package at this stage.
+
+### Completed tasks (Phase 6)
+
+- [x] **`vai_agent.users.user_resolver`** — `User` (frozen Pydantic),
+      `UserResolver` with three modes:
+  - `dev` — returns a fixed default `User` (groups freely settable,
+    admin allowed in dev only).
+  - `header` — reads `X-User-Id`, `X-User-Email`, `X-User-Groups`;
+    protected group names (`admin`, `superadmin`, `root`) are **stripped**
+    because the application cannot verify the upstream's trust boundary.
+  - `future_oidc` — placeholder that raises `NotImplementedError`.
+- [x] **`vai_agent.tools.base`** — `ToolBase` ABC + frozen `ToolResult`.
+      Subclasses declare `name`, `description`, `args_model`,
+      `access_groups` and a `execute(args, user) -> ToolResult` method.
+      Helper methods `_ok()` and `_fail()` enforce uniform return shape.
+- [x] **`SecureRunSqlTool`** — pipeline:
+      `SqlPolicyEngine.validate()` → `PiiPolicyEngine.check()` →
+      `MssqlRunner.execute()`. Every blocked path returns a sanitised
+      `ToolResult(success=False, …)` with violation codes in
+      `metadata.violations` and the failing `stage`.
+- [x] **`ExplainSchemaTool`** — read-only. No table → table summary
+      list. Specific table → columns / PK / FKs / indexes + merged
+      per-table profile metadata (business names, grain, common
+      questions). Never executes SQL.
+- [x] **`ProfileSearchTool`** — case-insensitive substring search over
+      glossary terms (canonical + AR + EN + synonyms), table names &
+      descriptions, column names, business rules, metrics, and
+      per-table profiles. Returns hits grouped by `source`. Arabic
+      queries supported (UTF-8 throughout).
+- [x] **`vai_agent.vai_app.tool_registry.ToolRegistry`** — name-keyed
+      catalogue. Rejects duplicate registrations. `list_for_user(user)`
+      filters by access groups (case-insensitive, empty tuple = open
+      to all).
+- [x] **`vai_agent.vai_app.agent_factory.Agent`** — synchronous
+      dispatcher: looks up tool → access check → args validation
+      (`tool.args_model.model_validate`) → `tool.execute(args, user)`.
+      Every error path returns a `ToolResult`; unhandled tool
+      exceptions are caught and reported as `Internal error` with the
+      exception **type only** (never the message — DB internals).
+      Each invocation gets a `request_id` (UUID) propagated into
+      `ToolResult.metadata`.
+- [x] **`build_agent()` factory** — wires `SqlPolicyEngine`,
+      `PiiPolicyEngine`, `MssqlRunner`, all three tools, and the
+      `UserResolver` from a loaded `Profile` + `ConnectionSettings`.
+- [x] **`vai_agent.api.query`** — FastAPI router:
+  - `GET  /agent/tools` — descriptors (name, description, access_groups,
+    JSON-schema for args) filtered by the calling user's groups.
+  - `POST /agent/tools/{tool_name}/invoke` — body `{"args": {...}}`,
+    returns the `ToolResult` directly as JSON.
+  - `503 Service Unavailable` when no agent is attached to
+    `app.state.agent` (e.g. no profile / DB configured).
+  - `401 Unauthorized` when header-mode resolver cannot identify the
+    user.
+- [x] **`bootstrap.create_app()` updated** — registers the agent
+      router and initialises `app.state.agent = None`. Integration code
+      (or tests) attaches a real `Agent` afterwards.
+- [x] **`docs/COMPATIBILITY.md`** — new document:
+  - Explicit statement: `vanna` is **not** installed.
+  - Mapping of Vanna 2.0 concepts → our types.
+  - Installed-version table for every Phase 1–6 dependency, with
+    the sqlglot 30.x `walk()` quirk recorded.
+  - Adapter sketch for plugging real Vanna in later (Phase 7+).
+  - Deferred items table with target phases.
+- [x] **New tests: 76 added (311 total)**:
+  - `tests/test_user_resolver.py` (14 tests) — every mode, header
+    case-insensitivity, admin-stripping, missing-ID error.
+  - `tests/test_tools_base.py` (4 tests) — `_ok()` / `_fail()` helpers,
+    frozen `ToolResult`.
+  - `tests/test_tool_registry.py` (10 tests) — register / duplicate /
+    list / access-control with case-insensitive group matching.
+  - `tests/test_secure_run_sql_tool.py` (10 tests) — happy path
+    (mocked runner), SQL-policy block (DELETE, SELECT *), PII-policy
+    block (secret column), PII warning surfaced, timeout, runner error.
+  - `tests/test_explain_schema_tool.py` (6 tests) — list + detail +
+    space-in-name + unknown-table + per-table merge.
+  - `tests/test_profile_search_tool.py` (9 tests) — glossary, Arabic
+    query, column hit, metric hit, no-hits, case-insensitivity, limit.
+  - `tests/test_agent.py` (9 tests) — unknown tool, happy path,
+    request_id, invalid args, access denied, unhandled exception guard
+    (verifies the exception message **does not** leak).
+  - `tests/test_api_query.py` (14 tests) — 503 when no agent, list,
+    invoke happy paths, unknown tool returns 200 with success=False,
+    invalid args, access-group filtering of `GET /agent/tools`,
+    header-mode 401 vs success, and admin-stripping over HTTP.
+
+### Pending tasks (Phase 6)
+
+- [ ] _None._ Phase 6 is feature-complete.
+
+### Known issues / caveats
+
+- **No `vanna` Python package dependency** — intentional, fully
+  documented in `docs/COMPATIBILITY.md`. The future adapter sits
+  behind the same `ToolBase` interface and can be added without
+  rewriting callers.
+- **No LLM-driven planner yet** — `Agent.invoke()` takes the tool name
+  explicitly. An NL→tool planner is Phase 7 (OpenRouter + memory).
+- **No persistent audit log** — `request_id` flows through
+  `ToolResult.metadata` and structured logs only. Audit-log
+  persistence is deferred to Phase 8.
+- **No rate limiting yet** — per-user / per-IP / per-group caps are
+  deferred to Phase 8.
+- **`app.state.agent` is `None` by default.** A small startup
+  integration script that loads a profile and wires the agent will
+  ship in Phase 7 alongside the LLM config; until then the
+  `/agent/*` routes are best exercised via tests or by attaching the
+  agent manually.
+
+### Test results (Phase 6)
+
+```powershell
+.\.venv\Scripts\ruff.exe check .   # All checks passed.
+.\.venv\Scripts\pytest.exe -q      # 311 passed in 3.15s
+```
+
+### Files created or modified (Phase 6)
+
+```
+src/vai_agent/users/__init__.py                      (new)
+src/vai_agent/users/user_resolver.py                 (new)
+src/vai_agent/tools/__init__.py                      (new)
+src/vai_agent/tools/base.py                          (new)
+src/vai_agent/tools/secure_run_sql_tool.py           (new)
+src/vai_agent/tools/explain_schema_tool.py           (new)
+src/vai_agent/tools/profile_search_tool.py           (new)
+src/vai_agent/vai_app/__init__.py                    (new)
+src/vai_agent/vai_app/tool_registry.py               (new)
+src/vai_agent/vai_app/agent_factory.py               (new)
+src/vai_agent/api/query.py                           (new)
+src/vai_agent/bootstrap.py                           (modified: register agent router)
+docs/COMPATIBILITY.md                                (new)
+tests/test_user_resolver.py                          (new)
+tests/test_tools_base.py                             (new)
+tests/test_tool_registry.py                          (new)
+tests/test_secure_run_sql_tool.py                    (new)
+tests/test_explain_schema_tool.py                    (new)
+tests/test_profile_search_tool.py                    (new)
+tests/test_agent.py                                  (new)
+tests/test_api_query.py                              (new)
+PROGRESS.md                                          (modified)
+```
+
+---
+
+## Phase 5 — Database connection + MSSQL runner (✅ complete)
+
+Goal: the only place in the codebase where SQL reaches the database.
+No execution happens in earlier phases; callers pass a pre-approved query
+to :class:`MssqlRunner` after both policy engines have returned `allowed=True`.
+
+### Completed tasks (Phase 5)
+
+- [x] **`pyodbc>=5.0` and `pandas>=2.0`** added to `pyproject.toml` and
+      installed (pyodbc 5.3.0, pandas 2.3.3).
+- [x] `vai_agent.db.connection.ConnectionSettings` — Pydantic v2
+      `BaseSettings` with `env_prefix="DB_"` so environment variables
+      `DB_HOST`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `DB_PORT`,
+      `DB_DRIVER`, `DB_TRUST_SERVER_CERTIFICATE`, `DB_CONNECTION_TIMEOUT`
+      are picked up automatically. Key design points:
+  - `password` is a `SecretStr` — never appears in logs/repr.
+  - `trust_server_certificate` defaults to `False` (prod-safe).
+  - `driver` is validated against `ODBC Driver N for SQL Server` pattern.
+  - `build_connection_string()` produces a DSN-less pyodbc ODBC string
+    with `ApplicationIntent=ReadOnly` always appended.
+  - `safe_repr()` returns a loggable summary with no password.
+  - `get_connection_settings()` returns a per-process LRU-cached instance.
+- [x] `vai_agent.db.mssql_runner.MssqlRunner` — safe query executor:
+  - `_connect()` opens a pyodbc connection with `autocommit=True` and
+    sets `conn.timeout = query_timeout` for client-side deadline.
+  - `_run()` uses `pd.read_sql(chunksize=1000)` to stream rows; stops
+    at `max_rows` mid-stream and sets `truncated=True`.
+  - `truncated=True` is set whenever we stop at the `max_rows` boundary
+    (conservative: the caller cannot distinguish "exactly N" from "more
+    than N" without fetching further).
+  - All pyodbc / pandas exceptions are caught; `RunnerError` (safe
+    message + debug hint), `QueryTimeoutError` (HYT00 / HY008 SQLSTATE),
+    `RowLimitError` (reserved for future explicit row-limit enforcement).
+  - Connection always closed in `finally` via `contextlib.suppress`.
+  - `_to_result()` converts the DataFrame to `QueryResult` (frozen Pydantic
+    model): `list[str]` columns + `list[dict]` rows + `row_count` +
+    `truncated` + `rewritten_sql`.
+  - `_normalise_value()` converts numpy scalars, `pd.NaT`, `pd.Timestamp`,
+    and `float("nan")` to JSON-serialisable Python types.
+- [x] `vai_agent.db.__init__` updated to re-export `ConnectionSettings`,
+      `MssqlRunner`, `QueryResult`, `QueryTimeoutError`, `RunnerError`.
+- [x] New tests: 49 added (235 total):
+  - `tests/test_connection.py` (19 tests) — defaults, connection string
+    keys, `ApplicationIntent=ReadOnly`, TrustServerCertificate Yes/No,
+    `safe_repr` hides password, driver validation, `SecretStr` repr.
+  - `tests/test_mssql_runner.py` (30 tests) — all offline (mocked):
+    construction guards, happy path (return shape, empty set, closed
+    connection), row cap (single chunk, multi-chunk, boundary),
+    timeout (HYT00 error → `QueryTimeoutError`), generic DB errors
+    (safe message, debug hint, connection cleanup), value normalisation
+    (None, NaT, NaN, Timestamp, numpy int/float), mixed column result,
+    frozen `QueryResult` model.
+
+### Pending tasks (Phase 5)
+
+- [ ] _None._ Phase 5 is feature-complete.
+
+### Known issues / caveats
+
+- `truncated=True` at the exact `max_rows` boundary is conservative.
+  A Phase-6 optimisation could look ahead by one row and only set
+  `truncated=True` if there is at least one more row beyond the cap.
+- `RowLimitError` is defined and exported but never raised by the
+  current chunk-streaming implementation (it was planned as an alternative
+  raise-on-cap mode). Reserved for future use.
+- No audit logging yet — still deferred to the integration layer.
+- `query_timeout=0` is allowed (disables client-side timeout). Callers
+  should still set a server-side timeout via SQL Server configuration
+  or `SET QUERY_GOVERNOR_COST_LIMIT` via a session-level statement —
+  not added here to keep this module pure (no session setup SQL).
+
+### Test results (Phase 5)
+
+```powershell
+.\.venv\Scripts\ruff.exe check .   # All checks passed.
+.\.venv\Scripts\pytest.exe -q      # 235 passed in 2.76s
+```
+
+### Files created or modified (Phase 5)
+
+```
+pyproject.toml                             (modified: +pyodbc>=5.0, +pandas>=2.0)
+src/vai_agent/db/__init__.py               (modified: +connection + runner exports)
+src/vai_agent/db/connection.py             (new)
+src/vai_agent/db/mssql_runner.py           (new)
+tests/test_connection.py                   (new)
+tests/test_mssql_runner.py                 (new)
+PROGRESS.md                                (modified)
+```
+
+---
+
+## Phase 4 — SQL policy + PII policy (✅ complete)
 
 Goal: pure validation layer — no SQL executed. Every query must pass
 `SqlPolicyEngine` (structural) and `PiiPolicyEngine` (column-level) before
@@ -534,6 +775,23 @@ tests/test_health.py
 
 ## Next phase
 
+**Phase 6 — SecureRunSqlTool (integration of policy + runner + audit log) — planned, not started.**
+
+Tentative deliverables:
+
+- `tools/secure_run_sql_tool.py` — wires `SqlPolicyEngine` → `PiiPolicyEngine`
+  → `MssqlRunner` → audit log into one callable.
+- `security/audit_log.py` — structured per-request audit entry (request_id,
+  user_id, sql (safe form), violations, outcome, duration_ms).
+- FastAPI endpoint `POST /query` that:
+  - Resolves the user via `UserResolver` (Phase 6+).
+  - Runs the full policy + execution pipeline.
+  - Returns `QueryResult` or a structured error.
+
+---
+
+## Next phase (earlier plan)
+
 **Phase 4 — Semantic enrichment + memory seeding (planned, not started).**
 
 Phase 3 produces a *structural* profile. Tentative Phase-4 deliverables
@@ -567,4 +825,6 @@ profile + memory pipeline is verified.
 | 2     | done     | Profile models, loader, validators, CLI, 45 new tests.                                |
 | 3     | done     | Schema extractor + profile generator + CLI; 62 new tests; real DBnwind generated.     |
 | 4     | done     | SQL policy + PII policy engines; 70 new tests; no SQL executed.                       |
-| 5+    | planned  | SecureRunSqlTool (MSSQL runner + policy enforcement + audit log). See _Next phase_.   |
+| 5     | done     | DB connection + MSSQL runner; 49 new tests; all offline mocked.                       |
+| 6     | done     | Tools + registry + agent + FastAPI + UserResolver + COMPATIBILITY.md; 76 new tests.   |
+| 7+    | planned  | LLM service (OpenRouter), AgentMemory (ChromaDB), context enhancer, seeding script.   |
