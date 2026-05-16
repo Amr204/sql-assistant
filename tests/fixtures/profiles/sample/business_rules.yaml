@@ -1,0 +1,9 @@
+status_meanings: []
+type_meanings: []
+
+rules:
+  - id: br_001
+    description: An order is considered "shipped" when ShippedDate IS NOT NULL.
+    confidence: medium
+    needs_review: true
+    tables: [Orders]

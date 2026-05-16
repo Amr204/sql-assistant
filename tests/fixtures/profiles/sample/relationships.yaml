@@ -1,0 +1,22 @@
+relationships:
+  - id: rel_orders_customers
+    from_table: Orders
+    from_columns: [CustomerID]
+    to_table: Customers
+    to_columns: [CustomerID]
+    kind: foreign_key
+    cardinality: many_to_one
+    join_type: inner
+    confidence: high
+    reason: Explicit foreign key constraint FK_Orders_Customers.
+
+  - id: rel_order_details_orders
+    from_table: "Order Details"
+    from_columns: [OrderID]
+    to_table: Orders
+    to_columns: [OrderID]
+    kind: foreign_key
+    cardinality: many_to_one
+    join_type: inner
+    confidence: high
+    reason: Explicit foreign key constraint FK_Order_Details_Orders.

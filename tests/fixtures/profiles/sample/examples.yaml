@@ -1,0 +1,29 @@
+examples:
+  - id: ex_001
+    question_ar: "أعطني أول 10 عملاء"
+    question_en: "Show me the first 10 customers"
+    intent: lookup
+    difficulty: simple
+    required_tables: [Customers]
+    required_columns: [CustomerID, CompanyName]
+    sql: |
+      SELECT TOP 10 CustomerID, CompanyName
+      FROM dbo.Customers
+      ORDER BY CompanyName;
+    explanation: Returns up to 10 customers ordered alphabetically by company name.
+    confidence: high
+
+  - id: ex_002
+    question_en: "How many orders does each customer have?"
+    question_ar: "كم طلب لكل عميل؟"
+    intent: aggregation
+    difficulty: medium
+    required_tables: [Customers, Orders]
+    required_columns: [CustomerID, OrderID]
+    sql: |
+      SELECT c.CustomerID, c.CompanyName, COUNT(o.OrderID) AS OrderCount
+      FROM dbo.Customers AS c
+      LEFT JOIN dbo.Orders AS o ON o.CustomerID = c.CustomerID
+      GROUP BY c.CustomerID, c.CompanyName
+      ORDER BY OrderCount DESC;
+    confidence: high

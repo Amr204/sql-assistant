@@ -1,0 +1,854 @@
+أنت Senior AI Engineer + Senior Python Backend Engineer + Senior Data Architect.
+
+أريد منك بناء مشروع جديد من الصفر، لنظام SQL Assistant احترافي قابل للتوسع، مبني على التوثيق الرسمي لـ Vanna:
+https://vanna.ai/docs/
+
+يجب أن تستخدم مهارة
+/coding-discipline
+ أثناء العمل:
+
+استخدم virtual environment محلي داخل المشروع باسم .venv، ولا تعتمد على global Python. كل أوامر التثبيت والتشغيل والاختبار يجب أن تعمل من داخل .venv، ويجب توثيق ذلك في README وMakefile.
+
+استخدم API الفعلي المتاح في النسخة المثبتة، ولا تعتمد على أسماء classes غير موجودة.
+إذا اختلف التوثيق عن package installed، وثّق ذلك في ASSUMPTIONS.md وCOMPATIBILITY.md.
+- افهم المتطلبات قبل كتابة الكود.
+- لا تعمل حلول مؤقتة أو hardcoded إلا إذا كانت مذكورة صراحة كـ dev fallback.
+- افصل المسؤوليات داخل modules واضحة.
+- اكتب كود production-grade قابل للاختبار.
+- لا تكرر المنطق.
+- استخدم typing و Pydantic حيث يلزم.
+- أضف logging واضح.
+- أضف tests.
+- أضف README عملي للتشغيل.
+- أضف rate limiting:
+- per user
+- per IP في dev
+- per access group
+- max daily queries
+- max concurrent queries
+- أي افتراض غير مؤكد اكتبه في ملف ASSUMPTIONS.md ولا تخفيه.
+
+سأرفع لك مخطط قاعدة البيانات Schema:
+-  nwindSchema.sql
+المطلوب النهائي:
+بناء مشروع sql-assistant احترافي يستطيع فهم قاعدة البيانات بعمق، توليد SQL دقيق وآمن، تنفيذ الاستعلامات المسموحة فقط، حفظ المعرفة في ذاكرة دائمة، وتوليد ملفات وصف كاملة للقاعدة من المخطط.
+
+==================================================
+1. الالتزام بتوثيق Vanna
+==================================================
+
+ابنِ المشروع بنفس فلسفة Vanna 2.0:
+
+- Agent
+- ToolRegistry
+- RunSqlTool أو SecureRunSqlTool مبني حوله
+- AgentMemory
+- Persistent Memory وليس InMemory
+- UserResolver
+- FastAPI Server
+- LLM Service
+- Permissions / Access Groups
+- Audit Logging
+- LLM Context Enhancer
+- Custom Tools عند الحاجة
+- conversation Filters
+- llm context enhancers
+- ui feature flags
+
+لا تبنِ نظام prompt عشوائي خارج Vanna. المطلوب استخدام Vanna كإطار رئيسي، مع إضافة طبقات احترافية حوله.
+
+استخدم FastAPI deployment.
+
+استخدم OpenRouter كـ LLM provider عبر OpenAI-compatible API، مع قابلية تغيير المزود لاحقًا من config.
+==================================================
+2. بنية المشروع المطلوبة
+==================================================
+أنشئ مشروع Python جديد بهذا الهيكل أو ما يعادله بشكل أفضل:
+
+sql-assistant/
+├── README.md
+├── ASSUMPTIONS.md
+├── SECURITY.md
+├── pyproject.toml
+├── .env.example
+├── .gitignore
+├── src/
+│   └── vai_agent/
+│       ├── __init__.py
+│       ├── main.py
+│       ├── bootstrap.py
+│       ├── config/
+│       │   ├── settings.py
+│       │   └── logging_config.py
+│       ├── llm/
+│       │   ├── base.py
+│       │   └── openrouter_service.py
+│       ├── db/
+│       │   ├── mssql_runner.py
+│       │   ├── connection.py
+│       │   ├── schema_extractor.py
+│       │   └── query_limits.py
+│       ├── vai_app/
+│       │   ├── agent_factory.py
+│       │   ├── server_factory.py
+│       │   ├── tool_registry.py
+│       │   └── context_enhancer.py
+│       ├── tools/
+│       │   ├── secure_run_sql_tool.py
+│       │   ├── explain_schema_tool.py
+│       │   └── profile_search_tool.py
+│       ├── memory/
+│       │   ├── memory_factory.py
+│       │   ├── seed_memory.py
+│       │   └── chunking.py
+│       ├── knowledge/
+│       │   ├── profile_loader.py
+│       │   ├── profile_generator.py
+│       │   ├── schema_analyzer.py
+│       │   ├── example_generator.py
+│       │   └── validators.py
+│       ├── security/
+│       │   ├── sql_policy.py
+│       │   ├── pii_policy.py
+│       │   ├── permissions.py
+│       │   ├── audit_log.py
+│       │   └── errors.py
+│       ├── users/
+│       │   └── user_resolver.py
+│       └── api/
+│           └── health.py
+├── profiles/
+│   └── default/
+│       ├── profile.yaml
+│       ├── schema.generated.yaml
+│       ├── relationships.yaml
+│       ├── business_rules.yaml
+│       ├── glossary.yaml
+│       ├── metrics.yaml
+│       ├── examples.yaml
+│       ├── security_policy.yaml
+│       ├── sql_style.yaml
+│       ├── README.md
+│       └── tables/
+│           └── .gitkeep
+├── scripts/
+│   ├── generate_profile_from_schema.py
+│   ├── seed_memory.py
+│   ├── validate_profile.py
+│   ├── benchmark_questions.py
+│   └── extract_schema_from_mssql.py
+├── tests/
+│   ├── test_sql_policy.py
+│   ├── test_profile_loader.py
+│   ├── test_schema_analyzer.py
+│   ├── test_example_sql_validation.py
+│   └── test_context_enhancer.py
+└── docs/
+    ├── ARCHITECTURE.md
+    ├── DATABASE_PROFILE_GUIDE.md
+    ├── OPERATIONS.md
+    ├── BENCHMARKING.md
+    └── COMPATIBILITY.md
+    └── PROGRESS.md
+
+
+==================================================
+3. مدخلات النظام
+==================================================
+
+النظام يجب أن يقبل مخطط قاعدة بيانات من ملف، مثل:
+
+data/input/schema.sql
+ثم يولّد Database Profile كامل داخل:
+
+profiles/<profile_id>/
+
+يجب ألا يحتاج المستخدم إلى تعديل الكود عند إضافة قاعدة جديدة. إضافة قاعدة جديدة يجب أن تكون عبر profile جديد فقط.
+
+==================================================
+4. تحليل مخطط القاعدة بعمق
+==================================================
+
+عند قراءة المخطط، لا تكتفِ بذكر الجداول والأعمدة.
+
+حلل القاعدة بشكل عميق واستخرج:
+
+1. جميع الجداول.
+2. جميع الأعمدة.
+3. أنواع البيانات.
+4. Primary Keys.
+5. Foreign Keys.
+6. Unique Constraints.
+7. Indexes.
+8. Views.
+9. Stored Procedures إن وجدت.
+10. العلاقات الصريحة.
+11. العلاقات المحتملة inferred relationships.
+12. الجداول المحورية.
+13. جداول facts.
+14. جداول dimensions.
+15. جداول lookup/reference.
+16. جداول audit/logs.
+17. جداول users/auth/security.
+18. جداول configuration.
+19. جداول transactions.
+20. أعمدة التواريخ المهمة.
+21. أعمدة الحالة Status/State/Type.
+22. أعمدة المبالغ Amount/Balance/Total.
+23. أعمدة حساسة PII/secrets.
+24. أعمدة يمكن استخدامها للفرز الافتراضي.
+25. معنى كل جدول business meaning.
+26. grain لكل جدول: ماذا يمثل الصف الواحد؟
+27. أشهر join paths.
+28. المرادفات العربية والإنجليزية المتوقعة لكل جدول وعمود.
+29. أسئلة المستخدمين المحتملة.
+30. مؤشرات KPIs المحتملة.
+31. مخاطر SQL أو privacy داخل القاعدة.
+
+إذا كان المعنى غير مؤكد، لا تخترع بثقة. اكتب:
+confidence: low
+reason: "inferred from table/column names"
+
+==================================================
+5. ملفات Database Profile المطلوبة
+==================================================
+
+ولّد الملفات التالية تلقائيًا:
+
+profile.yaml:
+- profile_id
+- database_name
+- database_type
+- dialect
+- default_schema
+- default_row_limit
+- hard_row_limit
+- timezone
+- language settings
+- created_at
+- generated_from
+
+schema.generated.yaml:
+- كل الجداول والأعمدة وأنواعها وقيودها
+
+relationships.yaml:
+- العلاقات الصريحة من FK
+- العلاقات المستنتجة
+- join type المقترح
+- cardinality
+- confidence
+- reason
+
+business_rules.yaml:
+- تعريف العمليات الناجحة والفاشلة إن وجدت
+- معاني Status
+- معاني Type
+- قواعد business مستنتجة
+- قواعد تحتاج تأكيد من المستخدم
+
+glossary.yaml:
+- مصطلحات عربي/إنجليزي
+- mapping للجداول والأعمدة
+- synonyms
+- common user phrases
+
+metrics.yaml:
+- KPIs محتملة
+- اسم المؤشر عربي وإنجليزي
+- SQL expression
+- required tables
+- filters
+- caveats
+
+examples.yaml:
+- لا يقل عن 150 مثال سؤال وجواب SQL
+- الأسئلة بالعربي والإنجليزي
+- تغطي:
+  - lookup
+  - latest records
+  - filtering
+  - aggregation
+  - grouping
+  - ranking
+  - joins
+  - date ranges
+  - comparison
+  - trends
+  - failed/success operations
+  - anomaly-style questions
+  - operational reports
+  - business KPI questions
+  - admin-safe questions
+- كل مثال يحتوي:
+  - id
+  - question_ar
+  - question_en
+  - intent
+  - difficulty
+  - required_tables
+  - required_columns
+  - sql
+  - explanation
+  - safety_notes
+  - confidence
+
+security_policy.yaml:
+- allowed_schemas
+- blocked_schemas
+- allowed_tables
+- blocked_tables
+- pii_columns
+- sensitive_columns
+- secret_columns
+- allowed_operations: SELECT only
+- blocked_operations
+- max_rows
+- default_limit
+- user_access_groups
+- masking rules
+
+sql_style.yaml:
+- dialect: tsql
+- use TOP instead of LIMIT
+- no SELECT *
+- always schema-qualify tables
+- quote identifiers safely when needed
+- default ordering rules
+- date handling rules
+- null handling rules
+- aggregation style
+- pagination style
+
+tables/*.yaml:
+لكل جدول مهم أنشئ ملف مستقل يحتوي:
+- table name
+- business name Arabic
+- business name English
+- description
+- grain
+- primary key
+- important columns
+- sensitive columns
+- date columns
+- status columns
+- relationships
+- common filters
+- common joins
+- common questions
+- examples
+- confidence
+
+README.md داخل profile:
+- شرح القاعدة
+- أهم الجداول
+- أهم العلاقات
+- أهم الأسئلة
+- القيود الأمنية
+- الأشياء التي تحتاج مراجعة بشرية
+
+==================================================
+6. بناء vai Agent
+==================================================
+
+أنشئ agent_factory يقوم ببناء vai Agent بشكل واضح:
+
+- LLM Service: OpenRouter/OpenAI-compatible
+- ToolRegistry
+- SecureRunSqlTool
+- AgentMemory persistent
+- UserResolver
+- AgentConfig
+- AuditConfig إن كان مدعومًا
+- FastAPI server
+-  
+
+لا تستخدم InMemory كخيار افتراضي. استخدم persistent memory مثل:
+- ChromaDB محليًا كخيار افتراضي
+- واجعل التصميم يسمح لاحقًا بـ Qdrant أو pgvector
+
+يجب أن تكون الذاكرة قابلة للاستمرار بعد إعادة التشغيل.
+
+==================================================
+7. Memory Seeding
+==================================================
+
+أنشئ سكربت:
+
+scripts/seed_memory.py
+
+يقوم بتحميل هذه المعرفة إلى AgentMemory:
+
+1. schema chunks
+2. table descriptions
+3. relationships
+4. glossary
+5. business rules
+6. metrics
+7. verified SQL examples
+8. tool usage examples suitable for RunSqlTool
+
+لا تجعل seed_memory يحفظ في RAM فقط ثم يضيع. يجب أن يكتب في persistent memory.
+
+أضف أمر واضح في README:
+
+python scripts/generate_profile_from_schema.py --input data/input/schema.sql --profile default
+python scripts/validate_profile.py --profile default
+python scripts/seed_memory.py --profile default
+uvicorn vai_agent.main:app --reload
+
+==================================================
+8. Custom LLM Context Enhancer
+==================================================
+
+ابنِ Custom Context Enhancer مهمته:
+
+عند سؤال المستخدم:
+1. يحلل السؤال.
+2. يستخرج الكلمات المفتاحية.
+3. يربط المصطلحات العربية والإنجليزية بالـ glossary.
+4. يحدد الجداول المحتملة.
+5. يجلب فقط schema المرتبط.
+6. يجلب business rules المناسبة.
+7. يجلب examples مشابهة.
+8. يجلب security constraints.
+9. يبني سياق مختصر ومنظم للـ LLM.
+10. يمنع إرسال كل schema إذا كانت القاعدة كبيرة.
+
+يجب أن يقلل التوكن ويحسن الدقة.
+
+==================================================
+9. Secure SQL Execution
+==================================================
+
+لا تعتمد على الـ prompt فقط للأمان.
+أضف PromptInjectionFilter أو InputSafetyClassifier بسيط:
+- يرصد طلبات تجاوز السياسات
+- يرصد "ignore previous instructions"
+- يرصد طلب استخراج schema كامل بدون صلاحية
+- يرصد طلبات بيانات حساسة
+- لا يعتمد عليه وحده للأمان، بل كطبقة قبل SQL policy
+ابنِ SecureRunSqlTool أو wrapper حول RunSqlTool يقوم بالآتي قبل التنفيذ:
+
+- يسمح فقط بـ SELECT.
+- يمنع INSERT/UPDATE/DELETE/MERGE/DROP/ALTER/TRUNCATE/EXEC.
+- يمنع multiple statements.
+- يمنع comments المشبوهة.
+- يمنع sys و INFORMATION_SCHEMA إلا لو admin ومصرح.
+- يمنع OPENROWSET و OPENQUERY و xp_cmdshell.
+- يمنع cross-database queries.
+- يمنع SELECT *.
+- يفرض table allowlist.
+- يفرض column allowlist أو يمنع sensitive columns.
+- يطبق max row limit.
+- يضيف TOP افتراضي عند الحاجة.
+- يضيف query timeout.
+- يسجل audit log لكل محاولة.
+- يرجع error واضح وآمن للمستخدم بدون تسريب معلومات حساسة.
+
+استخدم parser مناسب مثل sqlglot إن أمكن مع T-SQL support، ولا تعتمد فقط على regex.
+
+==================================================
+10. أدوات Vanna المطلوبة
+==================================================
+
+سجل داخل ToolRegistry الأدوات التالية على الأقل:
+
+1. SecureRunSqlTool
+   - لتنفيذ SELECT آمن.
+
+2. ExplainSchemaTool
+   - يشرح الجداول والعلاقات من profile بدون تنفيذ SQL.
+
+3. ProfileSearchTool
+   - يبحث داخل profile/knowledge عندما يسأل المستخدم عن معنى جدول أو عمود.
+
+4. Optional Visualization Tool
+   - إذا كانت Vanna تدعم VisualizeDataTool في النسخة المستخدمة.
+
+5. Memory tools
+   - لحفظ واسترجاع الاستخدامات الناجحة إن كانت مدعومة.
+
+كل tool يجب أن يحتوي:
+- وصف واضح للـ LLM
+- Pydantic args
+- access_groups
+- structured result
+- error handling
+- audit logging
+
+==================================================
+11. LLM Provider
+==================================================
+
+استخدم OpenRouter كافتراضي:
+
+.env.example يجب أن يحتوي:
+
+OPENROUTER_API_KEY=
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_MODEL=
+DATABASE_URL=
+DB_PROFILE_ID=default
+MEMORY_BACKEND=chromadb
+CHROMA_PERSIST_DIR=.data/chroma
+APP_ENV=dev
+
+لكن اجعل التصميم يسمح لاحقًا بـ:
+-	OpenAI
+-	Gemini
+-	Anthropic
+-	local models
+-	nvidia
+
+لا تربط الكود بمزود واحد.
+
+==================================================
+12. SQL Server / MSSQL
+==================================================
+
+القاعدة الأساسية SQL Server.
+
+أنشئ MSSQL runner آمن يدعم:
+- pyodbc أو SQLAlchemy
+- connection timeout
+- query timeout
+- read-only user
+- TrustServerCertificate من config
+- max rows
+- pandas DataFrame result
+- تحويل النتائج إلى UI-friendly format
+
+==================================================
+13. توليد الأسئلة تلقائيًا
+==================================================
+افصل:
+profiles/<profile>/examples.yaml        للتدريب/الاسترجاع
+profiles/<profile>/eval_questions.yaml  للتقييم فقط
+
+ممنوع seed eval_questions إلى memory.
+
+
+من المخطط، ولّد 150 إلى 300 سؤال متنوع.
+
+يجب أن تكون الأسئلة بالعربي والإنجليزي، ومقسمة حسب:
+- simple
+- medium
+- advanced
+- analytical
+- operational
+- security-sensitive rejected examples
+
+أمثلة الأنواع:
+- آخر السجلات
+- أكثر العملاء/التجار نشاطًا
+- إجمالي المبالغ
+- عدد العمليات حسب الحالة
+- مقارنة اليوم مع أمس
+- الاتجاه الشهري
+- أعلى 10 حسب مبلغ
+- العمليات الفاشلة
+- العمليات بدون علاقة صحيحة
+- البحث برقم محفظة أو عميل
+- ملخص تنفيذي
+- أسئلة يجب رفضها لأنها تطلب بيانات حساسة
+
+يجب أن تنشئ SQL صحيح قدر الإمكان بناءً على schema.
+إذا لم تكن القاعدة متاحة للتنفيذ، ضع:
+validation_status: not_executed
+confidence: medium/low
+
+إذا كانت القاعدة متاحة، نفّذ EXPLAIN أو dry-run أو SELECT TOP 0 للتحقق.
+
+==================================================
+14. Benchmarking
+==================================================
+
+أنشئ benchmark system:
+
+scripts/benchmark_questions.py
+
+يقرأ examples.yaml ويختبر:
+- هل SQL صالح syntax؟
+- هل يستخدم جداول موجودة؟
+- هل يستخدم أعمدة موجودة؟
+- هل يحترم security policy؟
+- هل يحتاج join صحيح؟
+- هل النتيجة قابلة للتنفيذ؟
+- هل السؤال بالعربي يرجع SQL مناسب؟
+
+اخرج تقرير:
+
+reports/benchmark_report.md
+reports/benchmark_results.json
+
+==================================================
+15. التوثيق المطلوب
+==================================================
+
+اكتب README شامل يشرح:
+
+1. فكرة المشروع.
+2. المتطلبات.
+3. إعداد .env.
+4. توليد profile من schema.
+5. مراجعة ملفات profile.
+6. seed memory.
+7. تشغيل FastAPI.
+8. تجربة Web UI.
+9. إضافة قاعدة جديدة.
+10. إضافة LLM provider جديد.
+11. إعداد الأمان.
+12. تشغيل الاختبارات.
+13. تشغيل benchmark.
+14. المشاكل الشائعة.
+
+اكتب docs/ARCHITECTURE.md يحتوي Mermaid diagrams:
+
+- Architecture diagram
+- Request flow
+- Profile generation flow
+- SQL validation flow
+- Memory seeding flow
+
+==================================================
+16. Mermaid diagrams
+==================================================
+
+أضف داخل docs/ARCHITECTURE.md رسومات Mermaid التالية:
+
+1. System Architecture
+2. User Question to SQL Flow
+3. Database Profile Generation Flow
+4. Memory Seeding Flow
+5. SQL Security Validation Flow
+
+==================================================
+17. الاختبارات
+==================================================
+
+أضف tests لـ:
+
+- profile loader
+- schema parser
+- relationship inference
+- SQL policy
+- PII blocking
+- SELECT-only enforcement
+- examples.yaml validation
+- context enhancer retrieval
+- memory seeding
+- MSSQL runner mock
+
+استخدم pytest.
+
+==================================================
+18. جودة التنفيذ
+==================================================
+
+ممنوع:
+- hardcoded schema
+- hardcoded database name
+- secrets in code
+- InMemory as production default
+- executing unsafe SQL
+- SELECT *
+- ignoring errors
+- huge app.py monolith
+- fake examples with TODO
+- undocumented assumptions
+
+مطلوب:
+- modular code
+- strong typing
+- Pydantic models
+- clear configs
+- tests
+- audit logs
+- security-first SQL execution
+- profile-driven design
+- persistent memory
+- clean README
+
+==================================================
+19. مخرجات العمل النهائية
+==================================================
+
+في النهاية أعطني:
+
+1. مشروع كامل جاهز للتشغيل.
+2. ملفات profile مولدة من schema.
+3. ملفات knowledge منظمة.
+4. Vanna Agent يعمل عبر FastAPI.
+5. Memory persistent.
+6. Secure SQL tool.
+7. Context enhancer.
+8. Scripts لتوليد profile و seed memory و benchmark.
+9. Tests.
+10. README.
+11. docs مع Mermaid.
+12. تقرير يشرح:
+   - ماذا تم إنشاؤه؟
+   - كيف يعمل النظام؟
+   - أين أضع schema؟
+   - كيف أضيف قاعدة جديدة؟
+   - كيف أراجع business rules؟
+   - كيف أختبر الدقة؟
+   - ما الافتراضات غير المؤكدة؟
+==================================================
+20. قيود تنفيذ إلزامية لمنع مشروع شكلي
+==================================================
+
+نفذ المشروع على مراحل مهم مهم، ولا تنشئ ملفات شكلية فقط.
+
+ممنوع استخدام:
+- TODO placeholders
+- pass بدون سبب
+- fake implementations
+- mock production behavior
+- imports غير متحقق منها
+- package names غير متطابقة
+- أوامر README لا تعمل
+
+كل ملف تنشئه يجب أن يكون له دور واضح.
+
+إذا كان أي API من Vanna غير متاح في النسخة المثبتة:
+- لا تخترع API
+- افحص package installed
+- استخدم البديل الأقرب
+- وثّق ذلك في docs/COMPATIBILITY.md
+
+==================================================
+21. الإصدارات والاعتمادات
+==================================================
+
+استخدم:
+- Python 3.11+
+- Pydantic v2
+- pytest
+- ruff
+- mypy أو pyright
+- FastAPI
+- uvicorn
+- SQLAlchemy
+- pyodbc
+- sqlglot إن كان مناسبًا
+- chromadb
+- Vanna 2.x
+
+ثبّت dependencies في pyproject.toml بإصدارات واضحة أو ranges آمنة.
+
+أضف:
+- Makefile
+- docs/COMPATIBILITY.md
+- .github/workflows/ci.yml
+- pre-commit config إن أمكن
+
+==================================================
+22. Definition of Done
+==================================================
+
+لا تعتبر المهمة مكتملة إلا إذا تحقق التالي:
+
+1. pytest ينجح.
+2. ruff check ينجح.
+3. التطبيق يبدأ بدون ImportError.
+4. /health يرجع OK.
+5. يمكن توليد profile من schema.sql.
+6. يمكن validate profile.
+7. يمكن seed memory إلى Chroma persistent directory.
+8. SecureRunSqlTool يرفض:
+   - DELETE
+   - UPDATE
+   - DROP
+   - EXEC
+   - SELECT *
+   - multiple statements
+   - query على جدول blocked
+   - query على column حساس
+9. SecureRunSqlTool يسمح باستعلام SELECT آمن مع TOP.
+10. README يحتوي أوامر مجربة ومطابقة لأسماء الملفات.
+11. docs/COMPATIBILITY.md يذكر إصدار Vanna والـ imports المتاحة فعليًا.
+12. لا يوجد secret داخل الكود أو logs.
+13. لا يوجد TODO في الكود النهائي إلا إذا موثق كـ future enhancement.
+
+==================================================
+23. الأمن المتقدم
+==================================================
+
+أضف دعمًا لـ:
+- row-level security filters حسب access group
+- masking للحقول الحساسة
+- min_group_size للـ aggregation privacy
+- rate limiting per user/access group
+- request_id في logs و audit
+- sanitization لكل errors قبل عرضها للمستخدم
+- منع تسريب connection string أو schema داخلي في exceptions
+
+security_policy.yaml يجب أن يدعم:
+- table allowlist/denylist
+- column allowlist/denylist
+- row_filters
+- masking_rules
+- min_group_size
+- max_execution_seconds
+- max_rows
+- allowed_functions
+- blocked_functions
+- blocked_sql_features
+
+
+==================================================
+24. OpenRouter Provider
+==================================================
+
+نفذ OpenRouter عبر Provider Adapter.
+
+- استخدم Vanna OpenAILlmService إذا كان يدعم base_url.
+- إذا لا يدعم، أنشئ OpenRouterLlmService يطبق interface المطلوب من Vanna.
+- لا تربط agent_factory مباشرة بـ OpenRouter.
+- اجعل provider قابلًا للتغيير من env:
+  LLM_PROVIDER=openrouter|openai|anthropic|gemini|local
+
+==================================================
+25. User Resolver
+==================================================
+
+نفذ UserResolver بثلاثة أوضاع:
+
+1. dev:
+   مستخدم افتراضي من env.
+
+2. header:
+   يقرأ:
+   - X-User-Id
+   - X-User-Email
+   - X-User-Groups
+
+3. future_oidc:
+   interface جاهز لاحقًا لـ JWT/OIDC.
+
+في production:
+- لا تقبل admin group من headers غير موثوقة.
+- وثّق ذلك في SECURITY.md.
+
+==================================================
+26. Phase Execution Rules
+==================================================
+
+هذا الملف هو MASTER SPEC كامل للمشروع.
+
+لا تنفذ كل شيء دفعة واحدة.
+
+قسّم التنفيذ إلى مراحل واضحة، وفي كل مرحلة:
+- نفذ فقط المطلوب في المرحلة الحالية.
+- لا تنتقل للمرحلة التالية إلا بعد نجاح الاختبارات.
+- حدّث PROGRESS.md بعد كل مرحلة. والي فيه بيكون:
+- Current phase
+- Completed tasks
+- Pending tasks
+- Known issues
+- Test results
+- Next phase
+- اكتب الملفات التي تم إنشاؤها أو تعديلها.
+- اكتب الأوامر التي تم تشغيلها ونتائجها.
+- إذا ظهر تعارض بين التوثيق ونسخة Vanna المثبتة، وثّقه في COMPATIBILITY.md.

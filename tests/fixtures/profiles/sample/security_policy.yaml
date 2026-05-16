@@ -1,0 +1,46 @@
+allowed_schemas: [dbo]
+blocked_schemas: [sys, INFORMATION_SCHEMA]
+allowed_tables: []
+blocked_tables: []
+
+pii_columns:
+  - Customers.ContactName
+
+sensitive_columns: []
+secret_columns: []
+
+allowed_operations: [SELECT]
+blocked_operations:
+  - INSERT
+  - UPDATE
+  - DELETE
+  - MERGE
+  - DROP
+  - ALTER
+  - TRUNCATE
+  - EXEC
+
+max_rows: 10000
+default_limit: 100
+
+user_access_groups:
+  - name: analyst
+    description: Read-only analyst.
+    allowed_schemas: [dbo]
+    allowed_tables:
+      - Customers
+      - Orders
+      - "Order Details"
+    blocked_columns: [Customers.ContactName]
+
+masking_rules:
+  - column: Customers.ContactName
+    mask_type: redact
+    applies_to_groups: [analyst]
+
+row_filters: []
+min_group_size: 1
+max_execution_seconds: 30
+allowed_functions: []
+blocked_functions: []
+blocked_sql_features: []

@@ -1,0 +1,18 @@
+terms:
+  - canonical: customer
+    ar: [عميل, زبون]
+    en: [customer, client]
+    synonyms: [buyer]
+    maps_to:
+      tables: [Customers]
+      columns: [CompanyName, ContactName]
+    common_phrases:
+      - "أكثر العملاء"
+      - "top customers"
+
+  - canonical: order
+    ar: [طلب, طلبية]
+    en: [order]
+    maps_to:
+      tables: [Orders]
+      columns: [OrderID, OrderDate]

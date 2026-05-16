@@ -1,0 +1,22 @@
+# Filename convention: when the table name contains a space, use an
+# underscore in the filename and put the real (space-bearing) name inside
+# the `name` field. The loader keys the per-table dictionary by `name`,
+# never by filename, so this is purely a human-readability choice.
+name: "Order Details"
+schema: dbo
+business_name_ar: تفاصيل الطلب
+business_name_en: Order Details
+description: Order line items (composite PK on OrderID + ProductID).
+grain: One row per (order, product) pair.
+primary_key: [OrderID, ProductID]
+important_columns: [OrderID, ProductID, UnitPrice, Quantity]
+relationships:
+  - "Order Details (N) -> Orders (1) via OrderID"
+common_filters:
+  - "Quantity > 0"
+common_joins:
+  - "JOIN dbo.Orders ON Orders.OrderID = [Order Details].OrderID"
+common_questions:
+  - "إجمالي الكميات لكل طلب"
+  - "Top selling products by quantity"
+confidence: high

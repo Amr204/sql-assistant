@@ -1,0 +1,23 @@
+name: Orders
+schema: dbo
+business_name_ar: الطلبات
+business_name_en: Orders
+description: Order header records linking a customer to one or more order lines.
+grain: One row per order.
+primary_key: [OrderID]
+important_columns: [OrderID, CustomerID, OrderDate, ShippedDate]
+date_columns: [OrderDate, ShippedDate]
+status_columns: []
+relationships:
+  - "Orders (N) -> Customers (1) via CustomerID"
+  - "Orders (1) -> Order Details (N) via OrderID"
+common_filters:
+  - "OrderDate >= DATEADD(year, -1, GETDATE())"
+  - "ShippedDate IS NULL"
+common_joins:
+  - "JOIN dbo.Customers ON Customers.CustomerID = Orders.CustomerID"
+  - "JOIN dbo.[Order Details] ON [Order Details].OrderID = Orders.OrderID"
+common_questions:
+  - "إجمالي الطلبات في آخر شهر"
+  - "Unshipped orders"
+confidence: high

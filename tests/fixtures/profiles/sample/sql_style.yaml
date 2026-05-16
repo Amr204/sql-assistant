@@ -1,0 +1,10 @@
+dialect: tsql
+use_top: true
+no_select_star: true
+schema_qualified_tables: true
+quote_identifiers: when_needed
+default_ordering: "ORDER BY primary key DESC for time-series tables"
+date_handling: "Use ISO format YYYY-MM-DD; assume Africa/Riyadh timezone unless specified."
+null_handling: "Use ISNULL or COALESCE; never compare with = NULL."
+aggregation_style: "Always GROUP BY all non-aggregated SELECT columns."
+pagination_style: top

@@ -1,0 +1,71 @@
+tables:
+  - name: Customers
+    schema: dbo
+    description: Customer master records.
+    columns:
+      - name: CustomerID
+        type: NCHAR(5)
+        nullable: false
+      - name: CompanyName
+        type: NVARCHAR(40)
+        nullable: false
+      - name: ContactName
+        type: NVARCHAR(30)
+        nullable: true
+      - name: Country
+        type: NVARCHAR(15)
+        nullable: true
+    primary_key: [CustomerID]
+
+  - name: Orders
+    schema: dbo
+    description: Customer orders header.
+    columns:
+      - name: OrderID
+        type: INT
+        nullable: false
+      - name: CustomerID
+        type: NCHAR(5)
+        nullable: true
+      - name: OrderDate
+        type: DATETIME
+        nullable: true
+      - name: ShippedDate
+        type: DATETIME
+        nullable: true
+    primary_key: [OrderID]
+    foreign_keys:
+      - name: FK_Orders_Customers
+        columns: [CustomerID]
+        references_table: Customers
+        references_schema: dbo
+        references_columns: [CustomerID]
+    indexes:
+      - name: IX_Orders_CustomerID
+        columns: [CustomerID]
+
+  - name: "Order Details"
+    schema: dbo
+    description: Order line items (composite PK; table name contains a space, matching the real Northwind schema).
+    columns:
+      - name: OrderID
+        type: INT
+        nullable: false
+      - name: ProductID
+        type: INT
+        nullable: false
+      - name: UnitPrice
+        type: MONEY
+        nullable: false
+      - name: Quantity
+        type: SMALLINT
+        nullable: false
+    primary_key: [OrderID, ProductID]
+    foreign_keys:
+      - name: FK_Order_Details_Orders
+        columns: [OrderID]
+        references_table: Orders
+        references_columns: [OrderID]
+
+views: []
+stored_procedures: []

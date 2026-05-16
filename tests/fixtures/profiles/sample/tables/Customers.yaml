@@ -1,0 +1,22 @@
+name: Customers
+schema: dbo
+business_name_ar: العملاء
+business_name_en: Customers
+description: Master list of customers and their primary contact details.
+grain: One row per customer.
+primary_key: [CustomerID]
+important_columns: [CustomerID, CompanyName, Country]
+sensitive_columns: [ContactName]
+date_columns: []
+status_columns: []
+relationships:
+  - "Customers (1) -> Orders (N)"
+common_filters:
+  - "Country = 'SA'"
+common_joins:
+  - "JOIN dbo.Orders ON Orders.CustomerID = Customers.CustomerID"
+common_questions:
+  - "أكثر العملاء طلبًا"
+  - "Top customers by order volume"
+examples: [ex_001, ex_002]
+confidence: high

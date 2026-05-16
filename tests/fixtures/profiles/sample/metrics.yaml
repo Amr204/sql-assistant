@@ -1,0 +1,19 @@
+metrics:
+  - id: total_orders
+    name_ar: إجمالي الطلبات
+    name_en: Total Orders
+    description: Count of distinct orders.
+    sql_expression: COUNT(DISTINCT OrderID)
+    required_tables: [Orders]
+    confidence: high
+
+  - id: revenue
+    name_ar: الإيرادات
+    name_en: Revenue
+    description: Sum of UnitPrice * Quantity across order details.
+    sql_expression: SUM(UnitPrice * Quantity)
+    required_tables:
+      - "Order Details"
+    caveats:
+      - Does not account for discounts.
+    confidence: medium
