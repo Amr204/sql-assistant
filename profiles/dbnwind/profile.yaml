@@ -1,0 +1,13 @@
+profile_id: dbnwind
+database_name: DBnwind
+database_type: mssql
+dialect: tsql
+default_schema: dbo
+default_row_limit: 100
+hard_row_limit: 10000
+timezone: UTC
+language_settings:
+  primary: ar
+  secondary: en
+created_at: '2026-05-16T13:42:48.973025Z'
+generated_from: data\input\Schema.sql

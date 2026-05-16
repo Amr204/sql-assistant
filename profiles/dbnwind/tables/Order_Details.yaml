@@ -1,0 +1,22 @@
+name: Order Details
+schema: dbo
+primary_key:
+- OrderID
+- ProductID
+important_columns:
+- OrderID
+- ProductID
+- UnitPrice
+- Quantity
+- Discount
+sensitive_columns: []
+date_columns: []
+status_columns: []
+relationships:
+- Order Details (many) -> Orders (one) via OrderID
+- Order Details (many) -> Products (one) via ProductID
+common_filters: []
+common_joins: []
+common_questions: []
+examples: []
+confidence: low

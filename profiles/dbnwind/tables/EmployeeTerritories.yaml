@@ -1,0 +1,19 @@
+name: EmployeeTerritories
+schema: dbo
+primary_key:
+- EmployeeID
+- TerritoryID
+important_columns:
+- EmployeeID
+- TerritoryID
+sensitive_columns: []
+date_columns: []
+status_columns: []
+relationships:
+- EmployeeTerritories (many) -> Employees (one) via EmployeeID
+- EmployeeTerritories (many) -> Territories (one) via TerritoryID
+common_filters: []
+common_joins: []
+common_questions: []
+examples: []
+confidence: low

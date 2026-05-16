@@ -1,0 +1,16 @@
+name: CustomerDemographics
+schema: dbo
+primary_key:
+- CustomerTypeID
+important_columns:
+- CustomerTypeID
+sensitive_columns: []
+date_columns: []
+status_columns: []
+relationships:
+- CustomerCustomerDemo (many) -> CustomerDemographics (one) via CustomerTypeID
+common_filters: []
+common_joins: []
+common_questions: []
+examples: []
+confidence: low

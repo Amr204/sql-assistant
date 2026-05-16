@@ -1,0 +1,157 @@
+relationships:
+- id: rel_customercustomerdemo_customerdemographics
+  from_table: CustomerCustomerDemo
+  from_columns:
+  - CustomerTypeID
+  to_table: CustomerDemographics
+  to_columns:
+  - CustomerTypeID
+  kind: foreign_key
+  cardinality: many_to_one
+  join_type: inner
+  confidence: high
+  reason: Explicit foreign key constraint FK_CustomerCustomerDemo.
+- id: rel_customercustomerdemo_customers
+  from_table: CustomerCustomerDemo
+  from_columns:
+  - CustomerID
+  to_table: Customers
+  to_columns:
+  - CustomerID
+  kind: foreign_key
+  cardinality: many_to_one
+  join_type: inner
+  confidence: high
+  reason: Explicit foreign key constraint FK_CustomerCustomerDemo_Customers.
+- id: rel_employees_employees
+  from_table: Employees
+  from_columns:
+  - ReportsTo
+  to_table: Employees
+  to_columns:
+  - EmployeeID
+  kind: foreign_key
+  cardinality: many_to_one
+  join_type: inner
+  confidence: high
+  reason: Explicit foreign key constraint FK_Employees_Employees.
+- id: rel_employeeterritories_employees
+  from_table: EmployeeTerritories
+  from_columns:
+  - EmployeeID
+  to_table: Employees
+  to_columns:
+  - EmployeeID
+  kind: foreign_key
+  cardinality: many_to_one
+  join_type: inner
+  confidence: high
+  reason: Explicit foreign key constraint FK_EmployeeTerritories_Employees.
+- id: rel_employeeterritories_territories
+  from_table: EmployeeTerritories
+  from_columns:
+  - TerritoryID
+  to_table: Territories
+  to_columns:
+  - TerritoryID
+  kind: foreign_key
+  cardinality: many_to_one
+  join_type: inner
+  confidence: high
+  reason: Explicit foreign key constraint FK_EmployeeTerritories_Territories.
+- id: rel_order_details_orders
+  from_table: Order Details
+  from_columns:
+  - OrderID
+  to_table: Orders
+  to_columns:
+  - OrderID
+  kind: foreign_key
+  cardinality: many_to_one
+  join_type: inner
+  confidence: high
+  reason: Explicit foreign key constraint FK_Order_Details_Orders.
+- id: rel_order_details_products
+  from_table: Order Details
+  from_columns:
+  - ProductID
+  to_table: Products
+  to_columns:
+  - ProductID
+  kind: foreign_key
+  cardinality: many_to_one
+  join_type: inner
+  confidence: high
+  reason: Explicit foreign key constraint FK_Order_Details_Products.
+- id: rel_orders_customers
+  from_table: Orders
+  from_columns:
+  - CustomerID
+  to_table: Customers
+  to_columns:
+  - CustomerID
+  kind: foreign_key
+  cardinality: many_to_one
+  join_type: inner
+  confidence: high
+  reason: Explicit foreign key constraint FK_Orders_Customers.
+- id: rel_orders_employees
+  from_table: Orders
+  from_columns:
+  - EmployeeID
+  to_table: Employees
+  to_columns:
+  - EmployeeID
+  kind: foreign_key
+  cardinality: many_to_one
+  join_type: inner
+  confidence: high
+  reason: Explicit foreign key constraint FK_Orders_Employees.
+- id: rel_orders_shippers
+  from_table: Orders
+  from_columns:
+  - ShipVia
+  to_table: Shippers
+  to_columns:
+  - ShipperID
+  kind: foreign_key
+  cardinality: many_to_one
+  join_type: inner
+  confidence: high
+  reason: Explicit foreign key constraint FK_Orders_Shippers.
+- id: rel_products_categories
+  from_table: Products
+  from_columns:
+  - CategoryID
+  to_table: Categories
+  to_columns:
+  - CategoryID
+  kind: foreign_key
+  cardinality: many_to_one
+  join_type: inner
+  confidence: high
+  reason: Explicit foreign key constraint FK_Products_Categories.
+- id: rel_products_suppliers
+  from_table: Products
+  from_columns:
+  - SupplierID
+  to_table: Suppliers
+  to_columns:
+  - SupplierID
+  kind: foreign_key
+  cardinality: many_to_one
+  join_type: inner
+  confidence: high
+  reason: Explicit foreign key constraint FK_Products_Suppliers.
+- id: rel_territories_region
+  from_table: Territories
+  from_columns:
+  - RegionID
+  to_table: Region
+  to_columns:
+  - RegionID
+  kind: foreign_key
+  cardinality: many_to_one
+  join_type: inner
+  confidence: high
+  reason: Explicit foreign key constraint FK_Territories_Region.

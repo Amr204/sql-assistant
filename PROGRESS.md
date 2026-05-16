@@ -7,7 +7,157 @@ Live tracker for the phased delivery of SQL Assistant. The master spec is
 
 ## Current phase
 
-**Phase 2 — Profile models, loader, validators. Status: ✅ complete (lint + 54 tests green).**
+**Phase 3 — Schema-to-profile generator. Status: ✅ complete (lint + 116 tests green; real DBnwind profile generated and validated).**
+
+Goal: read a SSMS-style DDL script and emit the four base profile
+files — `profile.yaml`, `schema.generated.yaml`, `relationships.yaml`,
+`tables/*.yaml` — that downstream phases can build on.
+
+### Completed tasks (Phase 3)
+
+- [x] `vai_agent.db.schema_extractor` — focused, dependency-free regex
+      parser for SSMS DDL. Handles:
+  - `CREATE TABLE` with bracketed identifiers, including
+    space-bearing names (`[Order Details]`).
+  - Column types with size/precision (`nvarchar(40)`,
+    `decimal(10,2)`), `IDENTITY(seed,step)`, nullability.
+  - In-line `CONSTRAINT [...] PRIMARY KEY` (simple + composite).
+  - `ALTER TABLE ... ADD CONSTRAINT [...] FOREIGN KEY ... REFERENCES`
+    (one FK per ALTER, attached to the source table).
+  - `ALTER TABLE ... ADD CONSTRAINT [...] DEFAULT ... FOR [col]`
+    (applied back to the column's `default` field).
+  - `CREATE [UNIQUE] [NONCLUSTERED|CLUSTERED] INDEX`.
+  - `CREATE VIEW` (body stored as raw definition).
+  - `CREATE PROCEDURE` (parameters + body stored as raw definition).
+- [x] `split_go_batches` + `_balanced_paren_end` +
+      `_split_top_level_commas` — robust low-level helpers, tested in
+      isolation (quoted strings, nested parens, comma-in-parens, etc.).
+- [x] Parser dispatcher attempts each statement parser in
+      specificity order (PROCEDURE → VIEW → TABLE → INDEX → FK →
+      DEFAULT). Avoids a bug where SSMS's leading
+      `/****** Object: ... ******/` comment would break a naive
+      `startswith("CREATE")` dispatch.
+- [x] `vai_agent.knowledge.profile_generator.generate_profile` —
+      builds a Phase-2 `Profile` from the extraction result; produces
+      auto-generated per-table profiles (PK + first NOT-NULL columns
+      heuristic for `important_columns`, type-based detection of
+      `date_columns`, FK-derived relationship strings, `confidence:
+      low` so humans know to review).
+- [x] `write_profile_to_disk` — block-style YAML, `by_alias=True`,
+      `exclude_none=True`; per-table filenames sanitised via
+      `_safe_filename` (space → underscore, unsafe chars stripped)
+      while the real space-bearing name is preserved inside the file's
+      `name` field. Refuses to overwrite unless `force=True`.
+- [x] `read_schema_file` — BOM-aware reader; handles SSMS's default
+      UTF-16 LE encoding, UTF-16 BE, UTF-8 BOM, and plain UTF-8.
+- [x] `vai_agent.cli.generate_profile.main` + thin wrapper
+      `scripts/generate_profile_from_schema.py`. Exit codes:
+      `0 = ok`, `1 = refused to overwrite`, `2 = input missing /
+      undecodable`. Injectable stdout/stderr for testing.
+- [x] Resolved an import cycle introduced by Phase-3
+      (`db.schema_extractor` ↔ `knowledge`): `profile_generator` is
+      now reachable only via `from vai_agent.knowledge.profile_generator
+      import ...`, not re-exported from `knowledge/__init__.py`. Reason
+      documented in the package's module docstring.
+- [x] New fixture `tests/fixtures/ddl/minimal.sql` — 3 tables (one with
+      a space), 1 view, 1 procedure, 2 FKs, 2 indexes (1 unique), 2
+      DEFAULT constraints.
+- [x] New tests (62 added in Phase 3; 116 total):
+  - `tests/test_schema_extractor.py` (40 tests) — every parser plus a
+    smoke test class that runs against the real `data/input/Schema.sql`
+    and asserts the exact table count (13), view count (16),
+    procedure count (7), relationship count (13), composite PK on
+    `Order Details`, self-referential FK on Employees, and 4 indexes
+    on `Order Details`.
+  - `tests/test_profile_generator.py` (16 tests) — meta population,
+    per-table heuristics, idempotent (byte-for-byte) writes, and a
+    round-trip test that parses → generates → writes → loads →
+    validates with **zero errors** for both the minimal fixture
+    and the real DBnwind schema.
+  - `tests/test_generate_profile_cli.py` (6 tests) — happy path,
+    missing input → exit 2, refuse-overwrite → exit 1,
+    `--force` → exit 0, real-schema run produces a validatable
+    `dbnwind` profile.
+
+### Pending tasks (Phase 3)
+
+- [ ] _None._ Phase 3 is feature-complete.
+
+### Known issues / caveats
+
+- **CHECK constraints are ignored.** The real `Schema.sql` has half a
+  dozen (`CK_Discount`, `CK_Quantity`, `CK_Birthdate`, etc.), but
+  Phase-2's `Table` model has no place for them. They will be
+  modelled if/when `SecureRunSqlTool` needs to enforce them.
+- **Parser is a focused regex implementation**, not a general SQL
+  parser. It targets SSMS's "Script Database As" output and is
+  documented as such in the module docstring. Other DDL dialects or
+  manually-authored SSMS scripts with non-standard formatting may not
+  parse. `sqlglot` is the planned fallback once query-time SQL
+  parsing is needed for the secure SQL tool.
+- **Per-table profile content is intentionally sparse.** The
+  generator emits PK, important columns, date columns, and FK-based
+  relationship strings; everything else (business names, descriptions,
+  common questions, examples) is left blank with `confidence: low`
+  for human review. This is by design — see the master spec's
+  "Phase Execution Rules" about avoiding fabricated content.
+- **`profile.yaml` is generated even though it wasn't in the
+  Phase-3 brief.** Without it, the Phase-2 loader refuses to load
+  the profile, defeating the purpose of generation. Documented in
+  the generator's module docstring.
+- **`generated_from` records the path verbatim.** On Windows it
+  appears as `data\input\Schema.sql`; on POSIX it would use
+  forward slashes. This is faithful to how the CLI was invoked
+  and does not affect anything functional.
+- **The generated `profiles/dbnwind/` directory is now in the repo
+  but is *not* in `.gitignore`.** Decide whether to commit it as a
+  pre-built demo or to ignore it.
+
+### Test results
+
+```powershell
+.\.venv\Scripts\ruff.exe check .                          # All checks passed.
+.\.venv\Scripts\pytest.exe -q                             # 116 passed in 1.85s
+.\.venv\Scripts\python.exe scripts\generate_profile_from_schema.py `
+    --input data\input\Schema.sql --profile dbnwind --database-name DBnwind
+# profile: dbnwind / tables: 13 / views: 16 / procedures: 7 /
+# relationships: 13 / files written: 16
+.\.venv\Scripts\python.exe scripts\validate_profile.py --profile dbnwind
+# profile: dbnwind / errors: 0 / warnings: 0 / OK - no issues found.
+```
+
+### Commands run (Phase 3)
+
+| Command | Outcome |
+| ------- | ------- |
+| `ruff check .` | All checks passed (after fixing one `RUF005` and one consolidated docstring). |
+| `pytest -q` | 116 / 116 passed (62 new + 54 from Phase 2/1). |
+| `python scripts\generate_profile_from_schema.py --input data\input\Schema.sql --profile dbnwind --database-name DBnwind` | Generated 16 files; 0 errors. |
+| `python scripts\validate_profile.py --profile dbnwind` | Exit 0, 0 errors, 0 warnings. |
+
+### Files created or modified (Phase 3)
+
+```
+src/vai_agent/db/__init__.py                           (new)
+src/vai_agent/db/schema_extractor.py                   (new)
+src/vai_agent/knowledge/__init__.py                    (modified: docstring; no re-export of generator)
+src/vai_agent/knowledge/profile_generator.py           (new)
+src/vai_agent/cli/generate_profile.py                  (new)
+scripts/generate_profile_from_schema.py                (new)
+tests/fixtures/ddl/minimal.sql                         (new)
+tests/test_schema_extractor.py                         (new)
+tests/test_profile_generator.py                        (new)
+tests/test_generate_profile_cli.py                     (new)
+profiles/dbnwind/profile.yaml                          (generated)
+profiles/dbnwind/schema.generated.yaml                 (generated)
+profiles/dbnwind/relationships.yaml                    (generated)
+profiles/dbnwind/tables/*.yaml                         (generated, 13 files)
+PROGRESS.md                                            (modified)
+```
+
+---
+
+## Phase 2 — Profile models, loader, validators (✅ complete)
 
 > **Re-audit (post-Schema.sql upload):** the real schema in `data/input/Schema.sql`
 > is Microsoft Northwind (`DBnwind`). The fixture was realigned to match
@@ -288,32 +438,36 @@ tests/test_health.py
 
 ## Next phase
 
-**Phase 3 — Profile generation from SQL schema (planned, not started).**
+**Phase 4 — Semantic enrichment + memory seeding (planned, not started).**
 
-Tentative deliverables (subject to confirmation before kickoff):
+Phase 3 produces a *structural* profile. Tentative Phase-4 deliverables
+(subject to confirmation before kickoff):
 
-- `src/vai_agent/db/schema_extractor.py` — parse `data/input/schema.sql`
-  (raw DDL) into intermediate structures.
-- `src/vai_agent/knowledge/schema_analyzer.py` — classify tables (fact /
-  dimension / lookup / audit / config), infer relationships.
-- `src/vai_agent/knowledge/profile_generator.py` — emit each
-  `profiles/<profile_id>/*.yaml` from the analyzed schema, using the
-  Phase-2 Pydantic models as the writer's source of truth (so anything
-  it produces is loadable by `ProfileLoader` and passes
-  `validate_profile`).
-- `scripts/generate_profile_from_schema.py` CLI.
-- Tests using a small DDL fixture; round-trip
-  generate → load → validate must yield 0 errors.
+- `src/vai_agent/knowledge/schema_analyzer.py` — classify each table
+  (fact / dimension / lookup / audit / config / transactional) and
+  surface inferred relationships beyond the explicit FKs.
+- Enrichments to the per-table profiles: candidate `sensitive_columns`
+  by name heuristics (`Phone`, `Email`, `SSN`, …), candidate business
+  names (transliterated), candidate `common_questions`.
+- `examples.yaml` seed generator (deterministic templates: lookup /
+  latest / count-by-status / top-N — _not_ free-text LLM generation
+  in this phase).
+- `business_rules.yaml`, `glossary.yaml`, `metrics.yaml` generators
+  (templated, low confidence, flagged for review).
+- `src/vai_agent/memory/` — Chroma-backed `AgentMemory` and a
+  `scripts/seed_memory.py` CLI that loads the generated profile into
+  persistent memory.
 
-Vanna integration itself is **Phase 4+** — it should not start until
-the full profile pipeline (generate → validate → seed) is verified.
+Vanna integration is **Phase 5+** — it should not start until the
+profile + memory pipeline is verified.
 
 ---
 
 ## Phase log
 
-| Phase | Status   | Notes                                                              |
-| ----- | -------- | ------------------------------------------------------------------ |
-| 1     | done     | Foundations: skeleton, settings, logging, `/health`, tests, ruff.  |
-| 2     | done     | Profile models, loader, validators, CLI, 45 new tests.             |
-| 3+    | planned  | See _Next phase_ above.                                            |
+| Phase | Status   | Notes                                                                              |
+| ----- | -------- | ---------------------------------------------------------------------------------- |
+| 1     | done     | Foundations: skeleton, settings, logging, `/health`, tests, ruff.                  |
+| 2     | done     | Profile models, loader, validators, CLI, 45 new tests.                             |
+| 3     | done     | Schema extractor + profile generator + CLI; 62 new tests; real DBnwind generated.  |
+| 4+    | planned  | See _Next phase_ above.                                                            |
