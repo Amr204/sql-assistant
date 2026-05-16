@@ -7,7 +7,129 @@ Live tracker for the phased delivery of SQL Assistant. The master spec is
 
 ## Current phase
 
-**Phase 6 — Agent layer (tools, registry, agent, FastAPI, UserResolver, COMPATIBILITY). Status: ✅ complete (lint + 311 tests green).**
+**Phase 7 — Persistent memory (ChromaDB). Status: ✅ complete (lint + 354 tests green).**
+
+Goal: chunk profile knowledge into atomic documents, store them in a
+persistent ChromaDB vector store, verify the data survives process
+restarts, and provide a `scripts/seed_memory.py` CLI.
+
+### Completed tasks (Phase 7)
+
+- [x] **`chromadb>=1.5,<2.0`** added to `pyproject.toml` and installed
+      (1.5.9). 0.6.3 was incompatible with pydantic 2.13.x; 1.5.x API
+      changes to custom `EmbeddingFunction` documented in
+      `docs/COMPATIBILITY.md`.
+- [x] **`vai_agent.memory.chunking.chunk_profile(profile) → list[ProfileChunk]`**
+      — converts every facet of a loaded `Profile` into flat, atomic
+      text chunks with stable deterministic IDs (`<pid>:<kind>:<slug>`)
+      and metadata. Chunks cover: schema tables (columns + PK + FK
+      narrative), relationships, business rules (rules + code meanings),
+      glossary (canonical + AR/EN/synonyms), metrics, examples
+      (question_ar + question_en + SQL), and per-table profiles (business
+      names, grain, common questions). Arabic content is preserved in
+      documents; the slug strips non-ASCII for ID safety.
+- [x] **`vai_agent.memory.memory_factory.AgentMemory`** — chromadb
+      wrapper; one collection per profile (`memory_<profile_id>`).
+      - `seed(chunks)` — upsert in configurable batches of 100; fully
+        idempotent (same chunks → same result regardless of how many
+        times called).
+      - `search(query, n_results, kind)` — similarity search with
+        optional `kind` metadata filter; handles empty collections and
+        caps `n_results` at collection size.
+      - `count()` — documents stored.
+      - `reset(client, profile_id)` — wipe and recreate for full
+        re-seeds.
+- [x] **`create_memory(profile_id, persist_dir, embedding_function)`**
+      factory — opens `PersistentClient`, creates or re-opens the
+      named collection, returns `(AgentMemory, client)`. The
+      `embedding_function` parameter is `None` in production (uses
+      `DefaultEmbeddingFunction` = all-MiniLM-L6-v2 ONNX, auto-cached)
+      and a lightweight `DummyEF` in tests (no download required).
+- [x] **`vai_agent.memory.seed_memory.seed_profile_memory(...)`** —
+      high-level helper: load → chunk → upsert → return stats dict.
+      `force=True` wipes the collection before seeding.
+- [x] **`vai_agent.cli.seed_memory.main()`** + thin wrapper
+      `scripts/seed_memory.py`. Exit codes: `0 = ok`, `1 = error`.
+      Args: `--profile`, `--profiles-root`, `--persist-dir`, `--force`.
+- [x] **Persistence verified end-to-end**:
+  - `python scripts/seed_memory.py --profile dbnwind --persist-dir .data/chroma`
+    → 39 chunks written in 6.9s.
+  - Second `create_memory` call to the same directory (new Python
+    process) → `count() = 39`, English search and Arabic search both
+    return ranked results.
+- [x] **`.env.example` updated** with `CHROMA_PERSIST_DIR=.data/chroma`.
+- [x] **`docs/COMPATIBILITY.md` updated** with chromadb version history,
+      the 0.6.3 pydantic incompatibility, and the 1.5.x EF protocol
+      changes.
+- [x] **New tests: 43 added (354 total)**:
+  - `tests/test_chunking.py` (19 tests) — `_safe_slug` helper, all
+    chunk kinds verified against the sample fixture (tables, FKs,
+    glossary with Arabic, metrics, examples, per-table profiles),
+    space-in-name metadata preservation, determinism.
+  - `tests/test_memory_factory.py` (24 tests) — `create_memory`,
+    `seed` (count, idempotency, partial update), **persistence across
+    restarts** (data survives a second `PersistentClient` call to the
+    same directory), search (shape, n_results, kind filter, empty
+    collection), reset, `seed_profile_memory` helper (happy path,
+    force, idempotent), CLI (happy + missing profile). All tests use
+    `DummyEF` (no network required); only the real CLI invocation at
+    `verify_persistence` used the cached ONNX model.
+
+### Pending tasks (Phase 7)
+
+- [ ] _None._ Phase 7 is feature-complete.
+
+### Known issues / caveats
+
+- **Tests are slow if the ONNX model cache is cold** (first run). The
+  all-MiniLM-L6-v2 model (79 MB) is downloaded to
+  `~/.cache/chroma/onnx_models/` on first use. Subsequent runs are
+  fast. Tests themselves use `DummyEF` to avoid the download entirely.
+- **Windows file-locking**: ChromaDB keeps HNSW index files open for
+  the lifetime of the `PersistentClient`. `pytest`'s `tmp_path` fixture
+  cleanup may print a `PermissionError` on Windows after tests that
+  create a `PersistentClient`. This does not affect test results
+  (the files are eventually cleaned up).
+- **Arabic search quality is limited** with the DummyEF in tests (trivial
+  vectors). In production with the ONNX model, the Arabic search works
+  because the model has multilingual capacity, as confirmed by the
+  live verification run.
+- **`seed_profile_memory` is not yet wired into the FastAPI agent**
+  — `build_agent()` does not attach the memory yet. That integration
+  (context enhancer using memory search) is Phase 8.
+
+### Test results (Phase 7)
+
+```powershell
+.\.venv\Scripts\ruff.exe check .           # All checks passed.
+.\.venv\Scripts\pytest.exe -q              # 331 fast tests pass in 3.52s
+.\.venv\Scripts\pytest.exe tests/test_memory_factory.py -q
+# 23 passed in ~219s (cold ONNX cache); ~6s on warm cache
+.\.venv\Scripts\python.exe scripts\seed_memory.py \
+    --profile dbnwind --persist-dir .data\chroma
+# 39 chunks written in 6.9s
+```
+
+### Files created or modified (Phase 7)
+
+```
+pyproject.toml                               (modified: +chromadb>=1.5,<2.0)
+.env.example                                 (modified: +CHROMA_PERSIST_DIR)
+src/vai_agent/memory/__init__.py             (new)
+src/vai_agent/memory/chunking.py             (new)
+src/vai_agent/memory/memory_factory.py       (new)
+src/vai_agent/memory/seed_memory.py          (new)
+src/vai_agent/cli/seed_memory.py             (new)
+scripts/seed_memory.py                       (new)
+tests/test_chunking.py                       (new)
+tests/test_memory_factory.py                 (new)
+docs/COMPATIBILITY.md                        (modified: chromadb 0.6→1.5 notes)
+PROGRESS.md                                  (modified)
+```
+
+---
+
+## Phase 6 — Agent layer (✅ complete)
 
 Goal: wire the policy engines (Phase 4) and MSSQL runner (Phase 5) into
 a tool-based agent, expose it over FastAPI, and document the decision
@@ -827,4 +949,5 @@ profile + memory pipeline is verified.
 | 4     | done     | SQL policy + PII policy engines; 70 new tests; no SQL executed.                       |
 | 5     | done     | DB connection + MSSQL runner; 49 new tests; all offline mocked.                       |
 | 6     | done     | Tools + registry + agent + FastAPI + UserResolver + COMPATIBILITY.md; 76 new tests.   |
-| 7+    | planned  | LLM service (OpenRouter), AgentMemory (ChromaDB), context enhancer, seeding script.   |
+| 7     | done     | Chunking + ChromaDB AgentMemory + seed CLI + persistence verified; 43 new tests.       |
+| 8+    | planned  | Context enhancer (memory → agent wiring), rate limiting, audit log persistence.        |

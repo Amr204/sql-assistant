@@ -21,6 +21,7 @@ dependencies = [
     "sqlglot>=20.0",
     "pyodbc>=5.0,<6.0",
     "pandas>=2.0,<3.0",
+    "chromadb>=1.5,<2.0",
 ]
 
 [project.optional-dependencies]
@@ -81,5 +82,6 @@ addopts = [
 filterwarnings = [
     "error",
     "ignore::DeprecationWarning:pydantic.*",
+    "ignore::DeprecationWarning:chromadb.*",
 ]
 asyncio_mode = "auto"

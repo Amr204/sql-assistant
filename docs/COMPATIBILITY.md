@@ -89,7 +89,7 @@ groups) stays unchanged.
 | `pyyaml`          | `>=6.0,<7.0`            | 6.0.3                             | `safe_load` / `safe_dump` only; `allow_unicode=True` for Arabic content. |
 | `vanna`           | _not installed_         | —                                 | Intentional. See section above.                        |
 | `openai`          | _not installed_         | —                                 | Reserved for Phase 7 (LLM service).                    |
-| `chromadb`        | _not installed_         | —                                 | Reserved for Phase 7 (`AgentMemory`).                  |
+| `chromadb`        | `>=1.5,<2.0`            | 1.5.9                             | Phase 7. 0.6.x was incompatible with pydantic 2.13.x (see note). 1.5.x custom EFs require `name()`, `embed_query()`, `embed_documents()` in addition to `__call__`. |
 
 ---
 
@@ -128,6 +128,29 @@ the documented behaviour must be re-verified.
   special-case during normalisation.
 
 ---
+
+### `chromadb` 0.6.3 vs 1.5.9
+
+We initially installed `chromadb>=0.5,<1.0` (got 0.6.3).  It was
+incompatible with pydantic 2.13.x: `chromadb.types.Collection.get_model_fields()`
+called `self.model_fields` on an **instance** rather than the class,
+which pydantic 2.13 surfaces as a `DeprecatedInstanceProperty` object
+instead of a dict → `AttributeError`.  We upgraded to `chromadb>=1.5,<2.0`
+(got 1.5.9).
+
+API changes in 1.5.x for custom `EmbeddingFunction` subclasses:
+
+| Method         | 0.6.x | 1.5.x |
+| -------------- | ----- | ----- |
+| `__call__`     | required (used for both add and query) | still called for add |
+| `embed_query`  | not required | **required** for `query()` calls |
+| `embed_documents` | not required | required for `add()` / `upsert()` |
+| `name()`       | not required | **required** for collection validation |
+| `__init__()`   | optional | **required** (deprecation warning if absent) |
+
+The `DummyEF` in tests implements all five.  The production path uses
+`DefaultEmbeddingFunction` (all-MiniLM-L6-v2 via ONNX, auto-cached in
+`~/.cache/chroma/onnx_models/`), which already satisfies the 1.5.x protocol.
 
 ## Items deliberately deferred
 
