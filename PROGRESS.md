@@ -7,7 +7,66 @@ Live tracker for the phased delivery of SQL Assistant. The master spec is
 
 ## Current phase
 
-**Phase 8 — LLM context enhancer. Status: ✅ complete (lint + 370 tests green, excluding slow Chroma ONNX tests).**
+**Phase 9 — Example generation & benchmarking. Status: ✅ complete (lint + 361 tests green, excluding slow Chroma ONNX tests).**
+
+Goal: deterministically generate ``examples.yaml`` and ``eval_questions.yaml``,
+run static SQL benchmarks, and write reports under ``reports/``.
+
+### Completed tasks (Phase 9)
+
+- [x] **`vai_agent.knowledge.example_generator`** — templated generators for
+      training examples (lookup, count, group-by, latest, trends, joins,
+      ranking, rejected policy cases) and held-out eval questions.
+      ``eval_questions`` are never passed to :func:`chunk_profile`.
+- [x] **`scripts/generate_examples.py`** — writes ``examples.yaml`` and
+      ``eval_questions.yaml`` (``--min-examples``, ``--min-eval``, ``--overwrite``).
+- [x] **`vai_agent.knowledge.benchmark`** — static checks BN001–BN011:
+      T-SQL parse, table/column resolution, SQL policy, PII policy, bilingual
+      questions, join hints.
+- [x] **`scripts/benchmark_questions.py`** — outputs
+      ``reports/benchmark_results.json``, ``reports/benchmark_report.md``,
+      and ``reports/eval/`` for eval questions.
+- [x] **Generated assets:** ``tests/fixtures/profiles/sample/`` (25 examples,
+      15 eval), ``profiles/dbnwind/`` (150 examples, 30 eval).
+- [x] **Validators:** ``difficulty=rejected`` examples skip EX002 keyword check.
+- [x] **New tests:** ``tests/test_example_generator.py``,
+      ``tests/test_benchmark.py``.
+
+### Test results (Phase 9)
+
+```powershell
+.\.venv\Scripts\ruff.exe check .
+.\.venv\Scripts\pytest.exe -q --ignore=tests/test_memory_factory.py
+# 361 passed
+.\.venv\Scripts\python.exe scripts/benchmark_questions.py --profile sample --profiles-root tests/fixtures/profiles
+# examples: 23/25 passed; eval: 15/15
+```
+
+### Files created or modified (Phase 9)
+
+```
+src/vai_agent/knowledge/example_generator.py   (new)
+src/vai_agent/knowledge/benchmark.py           (new)
+src/vai_agent/knowledge/profile_models.py      (modified: EvalQuestion)
+src/vai_agent/knowledge/profile_loader.py      (modified: eval_questions.yaml)
+src/vai_agent/knowledge/validators.py        (modified: rejected EX002 skip)
+src/vai_agent/cli/generate_examples.py         (new)
+src/vai_agent/cli/benchmark_questions.py       (new)
+scripts/generate_examples.py                   (new)
+scripts/benchmark_questions.py                 (new)
+reports/.gitkeep                               (new)
+tests/test_example_generator.py                (new)
+tests/test_benchmark.py                          (new)
+tests/fixtures/profiles/sample/examples.yaml   (generated)
+tests/fixtures/profiles/sample/eval_questions.yaml (generated)
+profiles/dbnwind/examples.yaml                 (generated)
+profiles/dbnwind/eval_questions.yaml           (generated)
+PROGRESS.md                                    (modified)
+```
+
+---
+
+## Phase 8 — LLM context enhancer ✅
 
 Goal: given a natural-language question and a loaded profile, build a
 compact, token-bounded context string for the LLM: glossary matching,
@@ -1012,4 +1071,5 @@ profile + memory pipeline is verified.
 | 6     | done     | Tools + registry + agent + FastAPI + UserResolver + COMPATIBILITY.md; 76 new tests.   |
 | 7     | done     | Chunking + ChromaDB AgentMemory + seed CLI + persistence verified; 43 new tests.       |
 | 8     | done     | Context enhancer: glossary, tables, examples, security, token budget; 16 new tests.   |
-| 9+    | planned  | LLM provider (OpenRouter), agent wiring, rate limiting, audit log persistence.         |
+| 9     | done     | Example generator, eval_questions, benchmark CLI, reports; 13 new tests.              |
+| 10+   | planned  | LLM provider (OpenRouter), agent wiring, rate limiting, audit log persistence.         |

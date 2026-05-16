@@ -117,6 +117,8 @@ def _check_examples(profile: Profile) -> list[ValidationIssue]:
 
         sql = ex.sql.strip()
         first_token = sql.split(None, 1)[0].upper() if sql else ""
+        if ex.difficulty.value == "rejected":
+            continue
         if first_token in _FORBIDDEN_FIRST_KEYWORDS:
             issues.append(ValidationIssue(
                 code="EX002", severity=Severity.error, location=loc,

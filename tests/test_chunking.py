@@ -119,7 +119,7 @@ class TestChunkKinds:
 
     def test_example_chunks_present(self, chunks) -> None:
         examples = self._by_kind(chunks, "example")
-        assert len(examples) == 2
+        assert len(examples) >= 2
         docs = " ".join(c.document for c in examples)
         assert "SELECT" in docs
 

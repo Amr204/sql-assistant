@@ -36,6 +36,7 @@ from pydantic import ValidationError
 from vai_agent.knowledge.profile_models import (
     BusinessRulesDocument,
     DatabaseSchema,
+    EvalQuestionsDocument,
     ExamplesDocument,
     GlossaryDocument,
     MetricsDocument,
@@ -131,6 +132,9 @@ class ProfileLoader:
         glossary = self._optional(directory, "glossary.yaml", GlossaryDocument)
         metrics = self._optional(directory, "metrics.yaml", MetricsDocument)
         examples = self._optional(directory, "examples.yaml", ExamplesDocument)
+        eval_questions = self._optional(
+            directory, "eval_questions.yaml", EvalQuestionsDocument
+        )
         security_policy = self._optional(directory, "security_policy.yaml", SecurityPolicy)
         sql_style = self._optional(directory, "sql_style.yaml", SqlStyle)
         tables = self._load_tables(directory / "tables")
@@ -143,6 +147,7 @@ class ProfileLoader:
             glossary=glossary,
             metrics=metrics,
             examples=examples,
+            eval_questions=eval_questions,
             security_policy=security_policy,
             sql_style=sql_style,
             tables=tables,

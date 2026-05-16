@@ -348,6 +348,41 @@ class ExamplesDocument(_ProfileBase):
 
 
 # ---------------------------------------------------------------------------
+# eval_questions.yaml  (evaluation only — never seeded to memory)
+# ---------------------------------------------------------------------------
+
+
+class EvalQuestion(_ProfileBase):
+    """A held-out question for benchmark / accuracy evaluation."""
+
+    id: str
+    question_ar: str | None = None
+    question_en: str | None = None
+    expected_tables: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    must_reject: bool = Field(
+        default=False,
+        description="When true, a correct agent must refuse or block the request.",
+    )
+    reference_sql: str | None = Field(
+        default=None,
+        description="Optional gold SQL used only by the benchmark static checks.",
+    )
+
+    @model_validator(mode="after")
+    def _must_have_at_least_one_question(self) -> EvalQuestion:
+        if not (self.question_ar or self.question_en):
+            raise ValueError(
+                f"eval question {self.id!r} must include question_ar or question_en"
+            )
+        return self
+
+
+class EvalQuestionsDocument(_ProfileBase):
+    questions: list[EvalQuestion] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
 # security_policy.yaml
 # ---------------------------------------------------------------------------
 
@@ -482,6 +517,7 @@ class Profile(_ProfileBase):
     glossary: GlossaryDocument = Field(default_factory=GlossaryDocument)
     metrics: MetricsDocument = Field(default_factory=MetricsDocument)
     examples: ExamplesDocument = Field(default_factory=ExamplesDocument)
+    eval_questions: EvalQuestionsDocument = Field(default_factory=EvalQuestionsDocument)
     security_policy: SecurityPolicy = Field(default_factory=SecurityPolicy)
     sql_style: SqlStyle = Field(default_factory=SqlStyle)
     tables: dict[str, TableProfile] = Field(default_factory=dict)

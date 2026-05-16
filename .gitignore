@@ -33,6 +33,11 @@ data/input/*
 logs/
 *.log
 
+# Generated benchmark output (re-run benchmark_questions.py to recreate)
+reports/benchmark_results.json
+reports/benchmark_report.md
+reports/eval/
+
 # IDE
 .vscode/
 .idea/

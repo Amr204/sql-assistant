@@ -124,15 +124,17 @@ class TestTableSelection:
 
 
 class TestExampleRetrieval:
-    def test_similar_question_retrieves_ex_001(self, enhancer, analyst_user) -> None:
+    def test_similar_question_retrieves_customer_lookup(self, enhancer, analyst_user) -> None:
         result = enhancer.enhance("Show me the first 10 customers", analyst_user)
         ids = [ex.id for ex in result.examples]
-        assert "ex_001" in ids
+        assert "ex_customers_lookup_top10" in ids
 
     def test_example_sql_in_context(self, enhancer, analyst_user) -> None:
         result = enhancer.enhance("Show me the first 10 customers", analyst_user)
         assert "SELECT TOP 10" in result.context_text
-        assert "ex_001" in result.context_text or any(ex.id == "ex_001" for ex in result.examples)
+        assert "ex_customers_lookup_top10" in result.context_text or any(
+            ex.id == "ex_customers_lookup_top10" for ex in result.examples
+        )
 
 
 # ---------------------------------------------------------------------------

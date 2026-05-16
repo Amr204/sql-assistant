@@ -1,29 +1,412 @@
 examples:
-  - id: ex_001
-    question_ar: "أعطني أول 10 عملاء"
-    question_en: "Show me the first 10 customers"
-    intent: lookup
-    difficulty: simple
-    required_tables: [Customers]
-    required_columns: [CustomerID, CompanyName]
-    sql: |
-      SELECT TOP 10 CustomerID, CompanyName
-      FROM dbo.Customers
-      ORDER BY CompanyName;
-    explanation: Returns up to 10 customers ordered alphabetically by company name.
-    confidence: high
+- id: ex_customers_lookup_top10
+  question_ar: أعرض أول 10 سجلات من جدول Customers.
+  question_en: Show the first 10 rows from Customers.
+  intent: lookup
+  difficulty: simple
+  required_tables:
+  - Customers
+  required_columns:
+  - CustomerID
+  - CompanyName
+  sql: 'SELECT TOP 10 CustomerID, CompanyName
 
-  - id: ex_002
-    question_en: "How many orders does each customer have?"
-    question_ar: "كم طلب لكل عميل؟"
-    intent: aggregation
-    difficulty: medium
-    required_tables: [Customers, Orders]
-    required_columns: [CustomerID, OrderID]
-    sql: |
-      SELECT c.CustomerID, c.CompanyName, COUNT(o.OrderID) AS OrderCount
-      FROM dbo.Customers AS c
-      LEFT JOIN dbo.Orders AS o ON o.CustomerID = c.CustomerID
-      GROUP BY c.CustomerID, c.CompanyName
-      ORDER BY OrderCount DESC;
-    confidence: high
+    FROM dbo.Customers
+
+    ORDER BY CompanyName;'
+  explanation: Returns up to 10 rows from Customers ordered by CompanyName.
+  safety_notes: []
+  confidence: medium
+- id: ex_customers_count
+  question_ar: كم عدد السجلات في Customers؟
+  question_en: How many rows are in Customers?
+  intent: aggregation
+  difficulty: simple
+  required_tables:
+  - Customers
+  required_columns: []
+  sql: 'SELECT COUNT(CustomerID) AS RowCount
+
+    FROM dbo.Customers;'
+  explanation: Counts all rows in Customers.
+  safety_notes: []
+  confidence: medium
+- id: ex_customers_group_by_country
+  question_ar: كم عدد سجلات Customers لكل Country؟
+  question_en: How many Customers rows per Country?
+  intent: grouping
+  difficulty: medium
+  required_tables:
+  - Customers
+  required_columns:
+  - Country
+  sql: 'SELECT Country, COUNT(CustomerID) AS Cnt
+
+    FROM dbo.Customers
+
+    GROUP BY Country
+
+    ORDER BY Cnt DESC;'
+  explanation: Groups Customers by Country.
+  safety_notes: []
+  confidence: medium
+- id: ex_customers_filter_country
+  question_ar: اعرض Customers حيث Country غير فارغ.
+  question_en: List Customers where Country is not null.
+  intent: filtering
+  difficulty: simple
+  required_tables:
+  - Customers
+  required_columns:
+  - Country
+  - CompanyName
+  sql: 'SELECT TOP 100 CustomerID, CompanyName, Country
+
+    FROM dbo.Customers
+
+    WHERE Country IS NOT NULL
+
+    ORDER BY CompanyName;'
+  explanation: Filtered lookup on Country.
+  safety_notes: []
+  confidence: medium
+- id: ex_orders_lookup_top10
+  question_ar: أعرض أول 10 سجلات من جدول Orders.
+  question_en: Show the first 10 rows from Orders.
+  intent: lookup
+  difficulty: simple
+  required_tables:
+  - Orders
+  required_columns:
+  - OrderID
+  - CustomerID
+  sql: 'SELECT TOP 10 OrderID, CustomerID
+
+    FROM dbo.Orders
+
+    ORDER BY CustomerID;'
+  explanation: Returns up to 10 rows from Orders ordered by CustomerID.
+  safety_notes: []
+  confidence: medium
+- id: ex_orders_count
+  question_ar: كم عدد السجلات في Orders؟
+  question_en: How many rows are in Orders?
+  intent: aggregation
+  difficulty: simple
+  required_tables:
+  - Orders
+  required_columns: []
+  sql: 'SELECT COUNT(OrderID) AS RowCount
+
+    FROM dbo.Orders;'
+  explanation: Counts all rows in Orders.
+  safety_notes: []
+  confidence: medium
+- id: ex_orders_latest_by_orderdate
+  question_ar: ما أحدث سجلات Orders؟
+  question_en: What are the most recent Orders records?
+  intent: latest_records
+  difficulty: medium
+  required_tables:
+  - Orders
+  required_columns:
+  - OrderDate
+  - OrderID
+  sql: 'SELECT TOP 10 OrderID, OrderDate
+
+    FROM dbo.Orders
+
+    ORDER BY OrderDate DESC;'
+  explanation: Latest Orders by OrderDate.
+  safety_notes: []
+  confidence: medium
+- id: ex_orders_monthly_trend
+  question_ar: اتجاه شهري لعدد سجلات Orders.
+  question_en: Monthly row counts for Orders.
+  intent: trends
+  difficulty: analytical
+  required_tables:
+  - Orders
+  required_columns:
+  - OrderDate
+  sql: 'SELECT YEAR(OrderDate) AS Y, MONTH(OrderDate) AS M, COUNT(OrderID) AS Cnt
+
+    FROM dbo.Orders
+
+    WHERE OrderDate IS NOT NULL
+
+    GROUP BY YEAR(OrderDate), MONTH(OrderDate)
+
+    ORDER BY Y, M;'
+  explanation: Monthly aggregation on OrderDate.
+  safety_notes: []
+  confidence: low
+- id: ex_order_details_lookup_top10
+  question_ar: أعرض أول 10 سجلات من جدول Order Details.
+  question_en: Show the first 10 rows from Order Details.
+  intent: lookup
+  difficulty: simple
+  required_tables:
+  - Order Details
+  required_columns:
+  - OrderID
+  - UnitPrice
+  sql: 'SELECT TOP 10 OrderID, ProductID, UnitPrice
+
+    FROM dbo.[Order Details]
+
+    ORDER BY UnitPrice;'
+  explanation: Returns up to 10 rows from Order Details ordered by UnitPrice.
+  safety_notes: []
+  confidence: medium
+- id: ex_order_details_count
+  question_ar: كم عدد السجلات في Order Details؟
+  question_en: How many rows are in Order Details?
+  intent: aggregation
+  difficulty: simple
+  required_tables:
+  - Order Details
+  required_columns: []
+  sql: 'SELECT COUNT(OrderID) AS RowCount
+
+    FROM dbo.[Order Details];'
+  explanation: Counts all rows in Order Details.
+  safety_notes: []
+  confidence: medium
+- id: ex_orders_join_customers
+  question_ar: كم سجل في Orders لكل Customers؟
+  question_en: How many Orders rows per Customers?
+  intent: join
+  difficulty: medium
+  required_tables:
+  - Orders
+  - Customers
+  required_columns:
+  - CustomerID
+  - CustomerID
+  - CompanyName
+  sql: "SELECT p.CompanyName, COUNT(c.OrderID) AS Cnt\nFROM dbo.Orders AS c\nINNER\
+    \ JOIN dbo.Customers AS p\n  ON p.CustomerID = c.CustomerID\nGROUP BY p.CompanyName\n\
+    ORDER BY Cnt DESC;"
+  explanation: Join Orders → Customers on FK.
+  safety_notes: []
+  confidence: medium
+- id: ex_orders_rank_customers
+  question_ar: أعلى 10 Customers حسب عدد سجلات Orders.
+  question_en: Top 10 Customers by number of Orders rows.
+  intent: ranking
+  difficulty: advanced
+  required_tables:
+  - Orders
+  - Customers
+  required_columns: []
+  sql: "SELECT TOP 10 p.CompanyName, COUNT(*) AS Cnt\nFROM dbo.Orders AS c\nINNER\
+    \ JOIN dbo.Customers AS p\n  ON p.CustomerID = c.CustomerID\nGROUP BY p.CompanyName\n\
+    ORDER BY Cnt DESC;"
+  explanation: Ranking parents by child row count.
+  safety_notes: []
+  confidence: medium
+- id: ex_order_details_join_orders
+  question_ar: كم سجل في Order Details لكل Orders؟
+  question_en: How many Order Details rows per Orders?
+  intent: join
+  difficulty: medium
+  required_tables:
+  - Order Details
+  - Orders
+  required_columns:
+  - OrderID
+  - OrderID
+  - CustomerID
+  sql: "SELECT p.CustomerID, COUNT(c.OrderID) AS Cnt\nFROM dbo.[Order Details] AS\
+    \ c\nINNER JOIN dbo.Orders AS p\n  ON p.OrderID = c.OrderID\nGROUP BY p.CustomerID\n\
+    ORDER BY Cnt DESC;"
+  explanation: Join Order Details → Orders on FK.
+  safety_notes: []
+  confidence: medium
+- id: ex_order_details_rank_orders
+  question_ar: أعلى 10 Orders حسب عدد سجلات Order Details.
+  question_en: Top 10 Orders by number of Order Details rows.
+  intent: ranking
+  difficulty: advanced
+  required_tables:
+  - Order Details
+  - Orders
+  required_columns: []
+  sql: "SELECT TOP 10 p.CustomerID, COUNT(*) AS Cnt\nFROM dbo.[Order Details] AS c\n\
+    INNER JOIN dbo.Orders AS p\n  ON p.OrderID = c.OrderID\nGROUP BY p.CustomerID\n\
+    ORDER BY Cnt DESC;"
+  explanation: Ranking parents by child row count.
+  safety_notes: []
+  confidence: medium
+- id: ex_reject_delete_all
+  question_ar: احذف كل السجلات
+  question_en: Delete all rows
+  intent: destructive
+  difficulty: rejected
+  required_tables:
+  - Customers
+  required_columns: []
+  sql: DELETE FROM dbo.Customers;
+  explanation: Must be rejected by SQL policy before execution.
+  safety_notes:
+  - 'Training example: agent must refuse or policy must block.'
+  confidence: high
+- id: ex_reject_select_star
+  question_ar: أعطني كل الأعمدة
+  question_en: Select all columns with star
+  intent: select_star
+  difficulty: rejected
+  required_tables:
+  - Customers
+  required_columns: []
+  sql: SELECT * FROM dbo.Customers;
+  explanation: Must be rejected by SQL policy before execution.
+  safety_notes:
+  - 'Training example: agent must refuse or policy must block.'
+  confidence: high
+- id: ex_reject_sys_tables
+  question_ar: اعرض sys.tables
+  question_en: List sys.tables
+  intent: blocked_schema
+  difficulty: rejected
+  required_tables: []
+  required_columns: []
+  sql: SELECT name FROM sys.tables;
+  explanation: Must be rejected by SQL policy before execution.
+  safety_notes:
+  - 'Training example: agent must refuse or policy must block.'
+  confidence: high
+- id: ex_reject_drop_table
+  question_ar: أسقط الجدول
+  question_en: Drop the table
+  intent: ddl
+  difficulty: rejected
+  required_tables:
+  - Customers
+  required_columns: []
+  sql: DROP TABLE dbo.Customers;
+  explanation: Must be rejected by SQL policy before execution.
+  safety_notes:
+  - 'Training example: agent must refuse or policy must block.'
+  confidence: high
+- id: ex_reject_multi_statement
+  question_ar: استعلامان معاً
+  question_en: Run two statements
+  intent: multi_statement
+  difficulty: rejected
+  required_tables: []
+  required_columns: []
+  sql: SELECT 1; SELECT 2;
+  explanation: Must be rejected by SQL policy before execution.
+  safety_notes:
+  - 'Training example: agent must refuse or policy must block.'
+  confidence: high
+- id: ex_customers_lookup_top5_5
+  question_ar: أعرض أول 5 سجلات من جدول Customers.
+  question_en: Show the first 5 rows from Customers.
+  intent: lookup
+  difficulty: simple
+  required_tables:
+  - Customers
+  required_columns:
+  - CustomerID
+  - CompanyName
+  sql: 'SELECT TOP 5 CustomerID, CompanyName
+
+    FROM dbo.Customers
+
+    ORDER BY CompanyName;'
+  explanation: Returns up to 5 rows from Customers ordered by CompanyName.
+  safety_notes: []
+  confidence: medium
+- id: ex_customers_lookup_top10_10
+  question_ar: أعرض أول 10 سجلات من جدول Customers.
+  question_en: Show the first 10 rows from Customers.
+  intent: lookup
+  difficulty: simple
+  required_tables:
+  - Customers
+  required_columns:
+  - CustomerID
+  - CompanyName
+  sql: 'SELECT TOP 10 CustomerID, CompanyName
+
+    FROM dbo.Customers
+
+    ORDER BY CompanyName;'
+  explanation: Returns up to 10 rows from Customers ordered by CompanyName.
+  safety_notes: []
+  confidence: medium
+- id: ex_customers_lookup_top20_20
+  question_ar: أعرض أول 20 سجلات من جدول Customers.
+  question_en: Show the first 20 rows from Customers.
+  intent: lookup
+  difficulty: simple
+  required_tables:
+  - Customers
+  required_columns:
+  - CustomerID
+  - CompanyName
+  sql: 'SELECT TOP 20 CustomerID, CompanyName
+
+    FROM dbo.Customers
+
+    ORDER BY CompanyName;'
+  explanation: Returns up to 20 rows from Customers ordered by CompanyName.
+  safety_notes: []
+  confidence: medium
+- id: ex_orders_lookup_top5_5
+  question_ar: أعرض أول 5 سجلات من جدول Orders.
+  question_en: Show the first 5 rows from Orders.
+  intent: lookup
+  difficulty: simple
+  required_tables:
+  - Orders
+  required_columns:
+  - OrderID
+  - CustomerID
+  sql: 'SELECT TOP 5 OrderID, CustomerID
+
+    FROM dbo.Orders
+
+    ORDER BY CustomerID;'
+  explanation: Returns up to 5 rows from Orders ordered by CustomerID.
+  safety_notes: []
+  confidence: medium
+- id: ex_orders_lookup_top10_10
+  question_ar: أعرض أول 10 سجلات من جدول Orders.
+  question_en: Show the first 10 rows from Orders.
+  intent: lookup
+  difficulty: simple
+  required_tables:
+  - Orders
+  required_columns:
+  - OrderID
+  - CustomerID
+  sql: 'SELECT TOP 10 OrderID, CustomerID
+
+    FROM dbo.Orders
+
+    ORDER BY CustomerID;'
+  explanation: Returns up to 10 rows from Orders ordered by CustomerID.
+  safety_notes: []
+  confidence: medium
+- id: ex_orders_lookup_top20_20
+  question_ar: أعرض أول 20 سجلات من جدول Orders.
+  question_en: Show the first 20 rows from Orders.
+  intent: lookup
+  difficulty: simple
+  required_tables:
+  - Orders
+  required_columns:
+  - OrderID
+  - CustomerID
+  sql: 'SELECT TOP 20 OrderID, CustomerID
+
+    FROM dbo.Orders
+
+    ORDER BY CustomerID;'
+  explanation: Returns up to 20 rows from Orders ordered by CustomerID.
+  safety_notes: []
+  confidence: medium

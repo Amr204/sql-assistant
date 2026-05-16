@@ -1,0 +1,282 @@
+questions:
+- id: eval_001
+  question_ar: كم عدد السجلات في جدول Customers؟
+  question_en: How many rows are in Customers?
+  expected_tables:
+  - Customers
+  tags:
+  - count
+  - simple
+  must_reject: false
+- id: eval_002
+  question_ar: كم عدد السجلات في جدول Suppliers؟
+  question_en: How many rows are in Suppliers?
+  expected_tables:
+  - Suppliers
+  tags:
+  - count
+  - simple
+  must_reject: false
+- id: eval_003
+  question_ar: كم عدد السجلات في جدول Categories؟
+  question_en: How many rows are in Categories?
+  expected_tables:
+  - Categories
+  tags:
+  - count
+  - simple
+  must_reject: false
+- id: eval_004
+  question_ar: كم عدد السجلات في جدول Products؟
+  question_en: How many rows are in Products?
+  expected_tables:
+  - Products
+  tags:
+  - count
+  - simple
+  must_reject: false
+- id: eval_005
+  question_ar: كم عدد السجلات في جدول Orders؟
+  question_en: How many rows are in Orders?
+  expected_tables:
+  - Orders
+  tags:
+  - count
+  - simple
+  must_reject: false
+- id: eval_006
+  question_ar: كم عدد السجلات في جدول Employees؟
+  question_en: How many rows are in Employees?
+  expected_tables:
+  - Employees
+  tags:
+  - count
+  - simple
+  must_reject: false
+- id: eval_007
+  question_ar: كم عدد السجلات في جدول Shippers؟
+  question_en: How many rows are in Shippers?
+  expected_tables:
+  - Shippers
+  tags:
+  - count
+  - simple
+  must_reject: false
+- id: eval_008
+  question_ar: كم عدد السجلات في جدول Order Details؟
+  question_en: How many rows are in Order Details?
+  expected_tables:
+  - Order Details
+  tags:
+  - count
+  - simple
+  must_reject: false
+- id: eval_009
+  question_ar: كم عدد السجلات في جدول CustomerCustomerDemo؟
+  question_en: How many rows are in CustomerCustomerDemo?
+  expected_tables:
+  - CustomerCustomerDemo
+  tags:
+  - count
+  - simple
+  must_reject: false
+- id: eval_010
+  question_ar: كم عدد السجلات في جدول CustomerDemographics؟
+  question_en: How many rows are in CustomerDemographics?
+  expected_tables:
+  - CustomerDemographics
+  tags:
+  - count
+  - simple
+  must_reject: false
+- id: eval_011
+  question_ar: كم عدد السجلات في جدول EmployeeTerritories؟
+  question_en: How many rows are in EmployeeTerritories?
+  expected_tables:
+  - EmployeeTerritories
+  tags:
+  - count
+  - simple
+  must_reject: false
+- id: eval_012
+  question_ar: كم عدد السجلات في جدول Region؟
+  question_en: How many rows are in Region?
+  expected_tables:
+  - Region
+  tags:
+  - count
+  - simple
+  must_reject: false
+- id: eval_013
+  question_ar: كم عدد السجلات في جدول Territories؟
+  question_en: How many rows are in Territories?
+  expected_tables:
+  - Territories
+  tags:
+  - count
+  - simple
+  must_reject: false
+- id: eval_014
+  question_ar: اعرض سجلات CustomerCustomerDemo مع أسماء CustomerDemographics المرتبطة.
+  question_en: List CustomerCustomerDemo rows with their related CustomerDemographics
+    names.
+  expected_tables:
+  - CustomerCustomerDemo
+  - CustomerDemographics
+  tags:
+  - join
+  - medium
+  must_reject: false
+- id: eval_015
+  question_ar: اعرض سجلات CustomerCustomerDemo مع أسماء Customers المرتبطة.
+  question_en: List CustomerCustomerDemo rows with their related Customers names.
+  expected_tables:
+  - CustomerCustomerDemo
+  - Customers
+  tags:
+  - join
+  - medium
+  must_reject: false
+- id: eval_016
+  question_ar: اعرض سجلات Employees مع أسماء Employees المرتبطة.
+  question_en: List Employees rows with their related Employees names.
+  expected_tables:
+  - Employees
+  - Employees
+  tags:
+  - join
+  - medium
+  must_reject: false
+- id: eval_017
+  question_ar: اعرض سجلات EmployeeTerritories مع أسماء Employees المرتبطة.
+  question_en: List EmployeeTerritories rows with their related Employees names.
+  expected_tables:
+  - EmployeeTerritories
+  - Employees
+  tags:
+  - join
+  - medium
+  must_reject: false
+- id: eval_018
+  question_ar: اعرض سجلات EmployeeTerritories مع أسماء Territories المرتبطة.
+  question_en: List EmployeeTerritories rows with their related Territories names.
+  expected_tables:
+  - EmployeeTerritories
+  - Territories
+  tags:
+  - join
+  - medium
+  must_reject: false
+- id: eval_019
+  question_ar: اعرض سجلات Order Details مع أسماء Orders المرتبطة.
+  question_en: List Order Details rows with their related Orders names.
+  expected_tables:
+  - Order Details
+  - Orders
+  tags:
+  - join
+  - medium
+  must_reject: false
+- id: eval_020
+  question_ar: اعرض سجلات Order Details مع أسماء Products المرتبطة.
+  question_en: List Order Details rows with their related Products names.
+  expected_tables:
+  - Order Details
+  - Products
+  tags:
+  - join
+  - medium
+  must_reject: false
+- id: eval_021
+  question_ar: اعرض سجلات Orders مع أسماء Customers المرتبطة.
+  question_en: List Orders rows with their related Customers names.
+  expected_tables:
+  - Orders
+  - Customers
+  tags:
+  - join
+  - medium
+  must_reject: false
+- id: eval_022
+  question_ar: اعرض سجلات Orders مع أسماء Employees المرتبطة.
+  question_en: List Orders rows with their related Employees names.
+  expected_tables:
+  - Orders
+  - Employees
+  tags:
+  - join
+  - medium
+  must_reject: false
+- id: eval_023
+  question_ar: اعرض سجلات Orders مع أسماء Shippers المرتبطة.
+  question_en: List Orders rows with their related Shippers names.
+  expected_tables:
+  - Orders
+  - Shippers
+  tags:
+  - join
+  - medium
+  must_reject: false
+- id: eval_024
+  question_ar: اعرض سجلات Products مع أسماء Categories المرتبطة.
+  question_en: List Products rows with their related Categories names.
+  expected_tables:
+  - Products
+  - Categories
+  tags:
+  - join
+  - medium
+  must_reject: false
+- id: eval_025
+  question_ar: اعرض سجلات Products مع أسماء Suppliers المرتبطة.
+  question_en: List Products rows with their related Suppliers names.
+  expected_tables:
+  - Products
+  - Suppliers
+  tags:
+  - join
+  - medium
+  must_reject: false
+- id: eval_026
+  question_ar: اعرض سجلات Territories مع أسماء Region المرتبطة.
+  question_en: List Territories rows with their related Region names.
+  expected_tables:
+  - Territories
+  - Region
+  tags:
+  - join
+  - medium
+  must_reject: false
+- id: eval_027
+  question_ar: احذف جميع العملاء
+  question_en: Delete all customers
+  expected_tables: []
+  tags:
+  - destructive
+  - rejected
+  must_reject: true
+- id: eval_028
+  question_ar: أعطني كل أعمدة جدول العملاء SELECT *
+  question_en: Show all columns from customers using SELECT *
+  expected_tables: []
+  tags:
+  - select_star
+  - rejected
+  must_reject: true
+- id: eval_029
+  question_ar: استعلم عن sys.tables
+  question_en: Query sys.tables for schema
+  expected_tables: []
+  tags:
+  - blocked_schema
+  - rejected
+  must_reject: true
+- id: eval_030
+  question_ar: أعرض أول 5 سجلات من Products.
+  question_en: Show the first 5 rows from Products.
+  expected_tables:
+  - Products
+  tags:
+  - lookup
+  - simple
+  must_reject: false

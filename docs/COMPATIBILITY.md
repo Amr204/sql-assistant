@@ -164,7 +164,7 @@ in Phase 6; each lists which phase will pick it up:
 | LLM-driven planner (NL → tool call) | Phase 7       |
 | `AgentMemory` (ChromaDB)            | Phase 7       |
 | Memory seeding script               | Phase 7       |
-| `examples.yaml` benchmark runner    | Phase 8       |
+| `examples.yaml` benchmark runner    | Phase 9 (`scripts/benchmark_questions.py`) |
 | Rate limiting (per user / IP / group)| Phase 8      |
 | Audit log persistence               | Phase 8       |
 | FastAPI Web UI                      | Phase 9       |

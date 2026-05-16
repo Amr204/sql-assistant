@@ -44,8 +44,10 @@ class TestLoadSampleProfile:
 
     def test_examples_loaded(self, loader: ProfileLoader) -> None:
         profile = loader.load("sample")
-        assert len(profile.examples.examples) == 2
-        assert profile.examples.examples[0].question_ar == "أعطني أول 10 عملاء"
+        assert len(profile.examples.examples) >= 2
+        first = profile.examples.examples[0]
+        assert first.question_ar and first.question_en
+        assert first.id.startswith("ex_")
 
     def test_per_table_profiles_loaded(self, loader: ProfileLoader) -> None:
         profile = loader.load("sample")
