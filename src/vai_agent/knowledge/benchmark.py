@@ -331,16 +331,20 @@ def _extract_table_column_refs(sql: str) -> tuple[set[str], set[tuple[str | None
         for stmt in sqlglot.parse(sql, read="tsql"):
             if stmt is None:
                 continue
+            aliases: dict[str, str] = {}
+            for node in stmt.find_all(exp.Table):
+                if node.name:
+                    table_refs.add(node.name)
+                    alias_name = node.alias_or_name
+                    if alias_name:
+                        aliases[alias_name] = node.name
             for node in stmt.walk():
-                if isinstance(node, exp.Table):
-                    if node.name:
-                        table_refs.add(node.name)
-                elif isinstance(node, exp.Column):
+                if isinstance(node, exp.Column):
                     table_ref = node.table
                     if isinstance(table_ref, str):
-                        table_name: str | None = table_ref
+                        table_name: str | None = aliases.get(table_ref, table_ref)
                     elif table_ref is not None:
-                        table_name = table_ref.name
+                        table_name = aliases.get(table_ref.name, table_ref.name)
                     else:
                         table_name = None
                     column_refs.add((table_name, node.name))

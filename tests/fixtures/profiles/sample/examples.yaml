@@ -302,7 +302,7 @@ examples:
   safety_notes:
   - 'Training example: agent must refuse or policy must block.'
   confidence: high
-- id: ex_customers_lookup_top5_5
+- id: ex_customers_lookup_top5_v1_5
   question_ar: أعرض أول 5 سجلات من جدول Customers.
   question_en: Show the first 5 rows from Customers.
   intent: lookup
@@ -320,7 +320,7 @@ examples:
   explanation: Returns up to 5 rows from Customers ordered by CompanyName.
   safety_notes: []
   confidence: medium
-- id: ex_customers_lookup_top10_10
+- id: ex_customers_lookup_top10_v1_10
   question_ar: أعرض أول 10 سجلات من جدول Customers.
   question_en: Show the first 10 rows from Customers.
   intent: lookup
@@ -338,7 +338,7 @@ examples:
   explanation: Returns up to 10 rows from Customers ordered by CompanyName.
   safety_notes: []
   confidence: medium
-- id: ex_customers_lookup_top20_20
+- id: ex_customers_lookup_top20_v1_20
   question_ar: أعرض أول 20 سجلات من جدول Customers.
   question_en: Show the first 20 rows from Customers.
   intent: lookup
@@ -356,7 +356,7 @@ examples:
   explanation: Returns up to 20 rows from Customers ordered by CompanyName.
   safety_notes: []
   confidence: medium
-- id: ex_orders_lookup_top5_5
+- id: ex_orders_lookup_top5_v1_5
   question_ar: أعرض أول 5 سجلات من جدول Orders.
   question_en: Show the first 5 rows from Orders.
   intent: lookup
@@ -374,7 +374,7 @@ examples:
   explanation: Returns up to 5 rows from Orders ordered by CustomerID.
   safety_notes: []
   confidence: medium
-- id: ex_orders_lookup_top10_10
+- id: ex_orders_lookup_top10_v1_10
   question_ar: أعرض أول 10 سجلات من جدول Orders.
   question_en: Show the first 10 rows from Orders.
   intent: lookup
@@ -392,7 +392,7 @@ examples:
   explanation: Returns up to 10 rows from Orders ordered by CustomerID.
   safety_notes: []
   confidence: medium
-- id: ex_orders_lookup_top20_20
+- id: ex_orders_lookup_top20_v1_20
   question_ar: أعرض أول 20 سجلات من جدول Orders.
   question_en: Show the first 20 rows from Orders.
   intent: lookup

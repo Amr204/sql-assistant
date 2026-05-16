@@ -1,0 +1,69 @@
+terms:
+  - canonical: customer
+    ar:
+      - عميل
+      - العملاء
+    en:
+      - customer
+      - client
+    synonyms:
+      - buyer
+    maps_to:
+      tables:
+        - Customers
+      columns:
+        - Customers.CustomerID
+        - Customers.CompanyName
+    common_phrases:
+      - أكثر العملاء طلباً
+      - top customers
+
+  - canonical: order
+    ar:
+      - طلب
+      - طلبية
+    en:
+      - order
+      - sales order
+    maps_to:
+      tables:
+        - Orders
+        - "Order Details"
+      columns:
+        - Orders.OrderID
+        - Orders.OrderDate
+        - "Order Details.Quantity"
+    common_phrases:
+      - أحدث الطلبات
+      - recent orders
+
+  - canonical: product
+    ar:
+      - منتج
+      - المنتجات
+    en:
+      - product
+      - item
+    maps_to:
+      tables:
+        - Products
+        - Categories
+      columns:
+        - Products.ProductName
+        - Products.UnitPrice
+        - Categories.CategoryName
+
+  - canonical: employee
+    ar:
+      - موظف
+      - الموظفون
+    en:
+      - employee
+      - staff
+    maps_to:
+      tables:
+        - Employees
+      columns:
+        - Employees.EmployeeID
+        - Employees.LastName
+        - Employees.FirstName

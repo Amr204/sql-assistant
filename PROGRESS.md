@@ -7,66 +7,84 @@ Live tracker for the phased delivery of SQL Assistant. The master spec is
 
 ## Current phase
 
-**Phase 9 — Example generation & benchmarking. Status: ✅ complete (lint + 361 tests green, excluding slow Chroma ONNX tests).**
+**Phase 10 — Final hardening. Status: ✅ complete (lint + 392 tests green).**
 
-Goal: deterministically generate ``examples.yaml`` and ``eval_questions.yaml``,
-run static SQL benchmarks, and write reports under ``reports/``.
+Goal: production wiring, readiness probing, stricter SQL policy
+enforcement, complete dbnwind profile facets, benchmark hardening,
+operational docs, and CI.
 
-### Completed tasks (Phase 9)
+### Completed tasks (Phase 10)
 
-- [x] **`vai_agent.knowledge.example_generator`** — templated generators for
-      training examples (lookup, count, group-by, latest, trends, joins,
-      ranking, rejected policy cases) and held-out eval questions.
-      ``eval_questions`` are never passed to :func:`chunk_profile`.
-- [x] **`scripts/generate_examples.py`** — writes ``examples.yaml`` and
-      ``eval_questions.yaml`` (``--min-examples``, ``--min-eval``, ``--overwrite``).
-- [x] **`vai_agent.knowledge.benchmark`** — static checks BN001–BN011:
-      T-SQL parse, table/column resolution, SQL policy, PII policy, bilingual
-      questions, join hints.
-- [x] **`scripts/benchmark_questions.py`** — outputs
-      ``reports/benchmark_results.json``, ``reports/benchmark_report.md``,
-      and ``reports/eval/`` for eval questions.
-- [x] **Generated assets:** ``tests/fixtures/profiles/sample/`` (25 examples,
-      15 eval), ``profiles/dbnwind/`` (150 examples, 30 eval).
-- [x] **Validators:** ``difficulty=rejected`` examples skip EX002 keyword check.
-- [x] **New tests:** ``tests/test_example_generator.py``,
-      ``tests/test_benchmark.py``.
+- [x] **Startup wiring in `create_app()`**:
+      reads `DB_PROFILE_ID`/`PROFILES_ROOT`, loads profile, builds
+      `ConnectionSettings` from `DB_*`, constructs `UserResolver` from
+      `USER_RESOLVER_MODE` + `DEV_USER_*`, builds agent, opens Chroma memory,
+      and stores runtime state in `app.state.*`.
+- [x] **Readiness endpoint**: `GET /ready` now reports
+      `profile_ready`/`agent_ready`/`memory_ready` and returns `503` when
+      degraded.
+- [x] **SQL policy hardening (`SqlPolicyEngine`)**:
+      `COUNT(*)` allowed, `allowed_schemas`, `allowed_tables`,
+      `blocked_sql_features`, and group-scoped `row_filters` enforced.
+- [x] **Benchmark hardening**:
+      alias-aware column resolution in BN003; dbnwind benchmark now
+      passes `150/150` examples and `30/30` eval.
+- [x] **Completed `profiles/dbnwind` profile facets**:
+      `security_policy.yaml`, `sql_style.yaml`, `business_rules.yaml`,
+      `glossary.yaml`, `metrics.yaml`, `README.md`.
+- [x] **`.env.example` aligned with runtime config**:
+      includes full `DB_*`, profile id/root, resolver mode, and `DEV_USER_*`.
+- [x] **Final docs added**:
+      `SECURITY.md`, `docs/ARCHITECTURE.md` (with Mermaid diagrams),
+      `docs/OPERATIONS.md`, `docs/BENCHMARKING.md`,
+      `docs/DATABASE_PROFILE_GUIDE.md`.
+- [x] **CI added**:
+      `.github/workflows/ci.yml` runs `ruff` and `pytest`.
 
-### Test results (Phase 9)
+### Test results (Phase 10)
 
 ```powershell
 .\.venv\Scripts\ruff.exe check .
-.\.venv\Scripts\pytest.exe -q --ignore=tests/test_memory_factory.py
-# 361 passed
-.\.venv\Scripts\python.exe scripts/benchmark_questions.py --profile sample --profiles-root tests/fixtures/profiles
-# examples: 23/25 passed; eval: 15/15
+.\.venv\Scripts\pytest.exe
+# 392 passed
+.\.venv\Scripts\python.exe scripts/validate_profile.py --profile dbnwind
+# OK - no issues found
+.\.venv\Scripts\python.exe scripts/benchmark_questions.py --profile dbnwind
+# examples: 150/150 passed; eval: 30/30 passed
 ```
 
-### Files created or modified (Phase 9)
+### Files created or modified (Phase 10)
 
 ```
-src/vai_agent/knowledge/example_generator.py   (new)
-src/vai_agent/knowledge/benchmark.py           (new)
-src/vai_agent/knowledge/profile_models.py      (modified: EvalQuestion)
-src/vai_agent/knowledge/profile_loader.py      (modified: eval_questions.yaml)
-src/vai_agent/knowledge/validators.py        (modified: rejected EX002 skip)
-src/vai_agent/cli/generate_examples.py         (new)
-src/vai_agent/cli/benchmark_questions.py       (new)
-scripts/generate_examples.py                   (new)
-scripts/benchmark_questions.py                 (new)
-reports/.gitkeep                               (new)
-tests/test_example_generator.py                (new)
-tests/test_benchmark.py                          (new)
-tests/fixtures/profiles/sample/examples.yaml   (generated)
-tests/fixtures/profiles/sample/eval_questions.yaml (generated)
-profiles/dbnwind/examples.yaml                 (generated)
-profiles/dbnwind/eval_questions.yaml           (generated)
+src/vai_agent/bootstrap.py                      (startup wiring + readiness state)
+src/vai_agent/api/health.py                    (+ /ready endpoint)
+src/vai_agent/config/settings.py               (profile/resolver/memory env config)
+src/vai_agent/db/connection.py                 (safe DB defaults)
+src/vai_agent/security/sql_policy.py           (allow-list/features/row-filters)
+src/vai_agent/knowledge/benchmark.py           (alias-aware BN003)
+src/vai_agent/knowledge/example_generator.py   (unique ids in generated examples)
+profiles/dbnwind/security_policy.yaml          (new)
+profiles/dbnwind/sql_style.yaml                (new)
+profiles/dbnwind/business_rules.yaml           (new)
+profiles/dbnwind/glossary.yaml                 (new)
+profiles/dbnwind/metrics.yaml                  (new)
+profiles/dbnwind/README.md                     (new)
+.env.example                                   (runtime env alignment)
+SECURITY.md                                    (new)
+docs/ARCHITECTURE.md                           (new, Mermaid)
+docs/OPERATIONS.md                             (new)
+docs/BENCHMARKING.md                           (new)
+docs/DATABASE_PROFILE_GUIDE.md                 (new)
+.github/workflows/ci.yml                       (new)
+tests/test_bootstrap_startup.py                (new)
+tests/test_health.py                           (updated for /ready)
+tests/test_sql_policy.py                       (updated for COUNT(*) + new checks)
 PROGRESS.md                                    (modified)
 ```
 
 ---
 
-## Phase 8 — LLM context enhancer ✅
+## Phase 9 — Example generation & benchmarking ✅
 
 Goal: given a natural-language question and a loaded profile, build a
 compact, token-bounded context string for the LLM: glossary matching,
@@ -1072,4 +1090,5 @@ profile + memory pipeline is verified.
 | 7     | done     | Chunking + ChromaDB AgentMemory + seed CLI + persistence verified; 43 new tests.       |
 | 8     | done     | Context enhancer: glossary, tables, examples, security, token budget; 16 new tests.   |
 | 9     | done     | Example generator, eval_questions, benchmark CLI, reports; 13 new tests.              |
-| 10+   | planned  | LLM provider (OpenRouter), agent wiring, rate limiting, audit log persistence.         |
+| 10    | done     | Final hardening: startup wiring, readiness, policy enforcement, docs, CI.              |
+| 11+   | planned  | LLM provider (OpenRouter), rate limiting, persistent audit logging, chat endpoint.      |

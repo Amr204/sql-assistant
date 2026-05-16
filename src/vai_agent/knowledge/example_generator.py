@@ -89,16 +89,26 @@ def generate_examples(
     seq = _extend(examples, _rejected_examples(profile, seq))
 
     # Scale up with extra TOP-N variants until min_count is met.
+    variant_round = 1
     while len(examples) < min_count and contexts:
         for ctx in contexts:
             if not ctx.pk_cols or not ctx.label_col:
                 continue
             for n in _TOP_LIMITS:
-                seq = _extend(examples, _lookup_examples(ctx, seq, top_n=n, suffix=f"_{n}"))
+                seq = _extend(
+                    examples,
+                    _lookup_examples(
+                        ctx,
+                        seq,
+                        top_n=n,
+                        suffix=f"_v{variant_round}_{n}",
+                    ),
+                )
                 if len(examples) >= min_count:
                     break
             if len(examples) >= min_count:
                 break
+        variant_round += 1
 
     logger.info(
         "generated examples",

@@ -1,0 +1,47 @@
+metrics:
+  - id: metric_total_orders
+    name_ar: إجمالي الطلبات
+    name_en: Total Orders
+    description: Total number of orders.
+    sql_expression: COUNT(Orders.OrderID)
+    required_tables:
+      - Orders
+    filters: []
+    caveats: []
+    confidence: medium
+
+  - id: metric_total_freight
+    name_ar: إجمالي الشحن
+    name_en: Total Freight
+    description: Sum of freight values on orders.
+    sql_expression: SUM(Orders.Freight)
+    required_tables:
+      - Orders
+    filters:
+      - Date range on Orders.OrderDate
+    caveats:
+      - Freight may be NULL for some records.
+    confidence: medium
+
+  - id: metric_order_line_revenue
+    name_ar: قيمة بنود الطلبات
+    name_en: Order Line Revenue
+    description: Sum of line values from Order Details.
+    sql_expression: SUM([Order Details].UnitPrice * [Order Details].Quantity * (1 - [Order Details].Discount))
+    required_tables:
+      - "Order Details"
+    filters: []
+    caveats:
+      - Discount is a fractional value.
+    confidence: medium
+
+  - id: metric_active_products
+    name_ar: المنتجات المتوفرة
+    name_en: Active Products
+    description: Number of products with UnitsInStock > 0.
+    sql_expression: SUM(CASE WHEN Products.UnitsInStock > 0 THEN 1 ELSE 0 END)
+    required_tables:
+      - Products
+    filters: []
+    caveats: []
+    confidence: low

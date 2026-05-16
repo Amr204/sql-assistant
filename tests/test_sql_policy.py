@@ -127,13 +127,9 @@ class TestSelectStar:
         assert "POL003" in _codes(r)
 
     def test_count_star_is_allowed(self) -> None:
-        # COUNT(*) is a function — its Star is inside a function call,
-        # but sqlglot still surfaces exp.Star. The spec says block SELECT *
-        # in the SELECT list; COUNT(*) is a common legitimate pattern.
-        # Phase 4 blocks it as a conservative choice; document here.
         r = _ok("SELECT COUNT(*) FROM dbo.Customers")
-        # COUNT(*) does contain a Star node; currently blocked conservatively.
-        assert "POL003" in _codes(r)
+        assert r.allowed
+        assert "POL003" not in _codes(r)
 
     def test_explicit_columns_pass(self) -> None:
         r = _ok("SELECT CustomerID, CompanyName FROM dbo.Customers")
@@ -229,6 +225,41 @@ class TestBlockedTable:
     def test_empty_block_list_allows_any(self) -> None:
         r = _ok("SELECT CustomerID FROM dbo.Customers")
         assert r.allowed
+
+
+class TestAllowListsAndFeatures:
+    def test_table_outside_allowed_tables_is_blocked(self) -> None:
+        policy = SecurityPolicy(allowed_tables=["Customers"])
+        r = SqlPolicyEngine(policy).validate("SELECT SupplierID FROM dbo.Suppliers")
+        assert not r.allowed
+        assert "POL012" in _codes(r)
+
+    def test_schema_outside_allowed_schemas_is_blocked(self) -> None:
+        policy = SecurityPolicy(allowed_schemas=["dbo"])
+        r = SqlPolicyEngine(policy).validate("SELECT x FROM audit.Logs")
+        assert not r.allowed
+        assert "POL011" in _codes(r)
+
+    def test_blocked_sql_feature_is_blocked(self) -> None:
+        policy = SecurityPolicy(blocked_sql_features=["PIVOT"])
+        r = SqlPolicyEngine(policy).validate("SELECT * FROM dbo.Customers PIVOT (...) AS p")
+        assert not r.allowed
+        assert "POL014" in _codes(r)
+
+    def test_required_row_filter_is_enforced_for_matching_group(self) -> None:
+        policy = SecurityPolicy(
+            row_filters=[{
+                "table": "Orders",
+                "expression": "OrderDate >= '1996-01-01'",
+                "applies_to_groups": ["finance"],
+            }],
+        )
+        r = SqlPolicyEngine(policy).validate(
+            "SELECT OrderID FROM dbo.Orders",
+            user_groups=["finance"],
+        )
+        assert not r.allowed
+        assert "POL013" in _codes(r)
 
 
 # ---------------------------------------------------------------------------

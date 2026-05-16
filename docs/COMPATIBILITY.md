@@ -23,10 +23,10 @@ abstractions inside `src/vai_agent/`.
    available in the installed version. Do not invent class names. If
    the documentation differs from the installed package, document it
    in `COMPATIBILITY.md`." — Section 20 of `vai-prompt.txt`.
-2. **Scope:** Phase 6 needs tool execution + access control + HTTP
-   surface. It does **not** yet need an LLM-driven planner, vector
-   memory, or text-to-SQL — those land in Phases 7–9 with OpenRouter
-   and ChromaDB.
+2. **Scope:** Phase 6 focused on tools + HTTP. **ChromaDB-backed memory**
+   and **`vai_agent.llm.*` (OpenRouter over `httpx`)** now exist for downstream
+   NL→SQL work; full LLM planning **above** ``Agent.invoke`` is still wiring a
+   consumer, not bundled as a turnkey HTTP feature.
 3. **Coupling cost:** `vanna` pins `chromadb`, `openai`, `sqlalchemy`
    and a number of optional vector backends. Installing it now would
    constrain dependency versions before we know exactly which Vanna
@@ -48,7 +48,7 @@ abstractions inside `src/vai_agent/`.
 | `UserResolver`              | `vai_agent.users.UserResolver`                              |
 | Schema explainer            | `vai_agent.tools.ExplainSchemaTool`                         |
 | Knowledge search            | `vai_agent.tools.ProfileSearchTool`                         |
-| `AgentMemory` (persistent)  | _Not implemented yet — Phase 7+ (ChromaDB-backed)_          |
+| `AgentMemory` (persistent)  | `vai_agent.memory.memory_factory.AgentMemory` — Chroma `PersistentClient` |
 | LLM context enhancer        | `vai_agent.vai_app.context_enhancer.ContextEnhancer` (Phase 8) |
 | Conversation filters        | _Not implemented yet — partly subsumed by `SqlPolicyEngine`_|
 | `AuditConfig`               | _Not implemented yet — Phase 6's logging only_              |
@@ -88,7 +88,8 @@ groups) stays unchanged.
 | `pandas`          | `>=2.0,<3.0`            | 2.3.3                             | Used for `read_sql(chunksize=...)`; `pd.NaT` and numpy scalars normalised in the runner. |
 | `pyyaml`          | `>=6.0,<7.0`            | 6.0.3                             | `safe_load` / `safe_dump` only; `allow_unicode=True` for Arabic content. |
 | `vanna`           | _not installed_         | —                                 | Intentional. See section above.                        |
-| `openai`          | _not installed_         | —                                 | Reserved for Phase 7 (LLM service).                    |
+| `openai`          | _not installed_         | —                                 | Not required — OpenRouter is called with raw `POST /chat/completions` via **`httpx`**. |
+| `httpx`           | `>=0.27,<1.0` (runtime) | —                                 | OpenAI-compatible OpenRouter HTTP client in `llm/openrouter_service.py`; also used implicitly by FastAPI test clients when applicable. |
 | `chromadb`        | `>=1.5,<2.0`            | 1.5.9                             | Phase 7. 0.6.x was incompatible with pydantic 2.13.x (see note). 1.5.x custom EFs require `name()`, `embed_query()`, `embed_documents()` in addition to `__call__`. |
 
 ---

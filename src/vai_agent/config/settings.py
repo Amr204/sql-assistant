@@ -2,10 +2,6 @@
 
 Settings are loaded from environment variables (and a local ``.env`` file
 when present). Values are validated by Pydantic v2 ``BaseSettings``.
-
-Only Phase 1 keys are modelled here. Additional groups (LLM, DB, memory,
-security) will be added in their own settings sub-models as later phases
-introduce them, to keep this module focused and reviewable.
 """
 
 from __future__ import annotations
@@ -14,7 +10,7 @@ from enum import StrEnum
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,6 +20,13 @@ class AppEnv(StrEnum):
     dev = "dev"
     staging = "staging"
     prod = "prod"
+
+
+class LlmProvider(StrEnum):
+    """Which LLM backend to instantiate (none = disable remote calls)."""
+
+    none = "none"
+    openrouter = "openrouter"
 
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -60,6 +63,61 @@ class Settings(BaseSettings):
         ge=256,
         le=128_000,
         description="Maximum estimated tokens for LLM context built by the context enhancer.",
+    )
+    db_profile_id: str = Field(
+        default="dbnwind",
+        description="Profile directory name under profiles_root.",
+    )
+    profiles_root: str = Field(
+        default="profiles",
+        description="Root directory containing profile subdirectories.",
+    )
+    chroma_persist_dir: str = Field(
+        default=".data/chroma",
+        description="Persistent directory for ChromaDB collections.",
+    )
+    user_resolver_mode: Literal["dev", "header", "future_oidc"] = Field(
+        default="dev",
+        description="User identity resolver mode.",
+    )
+    dev_user_id: str = Field(
+        default="dev-user",
+        description="Fallback user id used in dev resolver mode.",
+    )
+    dev_user_email: str | None = Field(
+        default="dev@example.local",
+        description="Fallback user email used in dev resolver mode.",
+    )
+    dev_user_groups: str = Field(
+        default="analyst",
+        description="Comma-separated groups used in dev resolver mode.",
+    )
+
+    llm_provider: LlmProvider = Field(
+        default=LlmProvider.none,
+        description="LLM vendor; 'none' skips building a remote chat client at startup.",
+    )
+    openrouter_api_key: SecretStr | None = Field(
+        default=None,
+        description="Bearer token for OpenRouter (never log this value).",
+    )
+    openrouter_base_url: str = Field(
+        default="https://openrouter.ai/api/v1",
+        description="Root URL for OpenAI-compatible endpoints (scheme + host + /api/v1).",
+    )
+    openrouter_model: str = Field(
+        default="",
+        description='Model slug, e.g. "openai/gpt-4o-mini" on OpenRouter.',
+    )
+    openrouter_http_referer: str | None = Field(
+        default=None,
+        description="Optional HTTP-Referer header recommended by OpenRouter for rankings.",
+    )
+    llm_http_timeout_seconds: float = Field(
+        default=120.0,
+        ge=5.0,
+        le=600.0,
+        description="Wall-clock HTTP timeout for a single completion request.",
     )
 
     @property

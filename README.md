@@ -4,11 +4,9 @@ A Vanna-powered SQL Assistant for safe, profile-driven querying of SQL Server
 databases. Long-term goal: turn natural-language questions (Arabic / English)
 into validated, audited, read-only `SELECT` statements over a known schema.
 
-> **Status — Phase 1 (foundations only).**
-> Only the project skeleton, configuration, logging, and `/health` endpoint
-> are implemented. Vanna integration, profile generation, secure SQL
-> execution, and memory seeding are intentionally **not** wired up yet — see
-> [`PROGRESS.md`](./PROGRESS.md) for the phased roadmap.
+> Live phase status lives in [`PROGRESS.md`](./PROGRESS.md). This README mirrors
+> the runnable surface: profiling tools, `/agent`, optionally OpenRouter-backed
+> `app.state.llm_service`.
 
 ---
 
@@ -39,25 +37,40 @@ source .venv/bin/activate
 pip install --upgrade pip
 pip install -e ".[dev]"
 
-# 3. Configure environment
+# 3. Configure environment (DB + profile IDs are required for a green /ready)
 cp .env.example .env          # then edit .env as needed
 
 # 4. Run the test suite + linter
 ruff check .
 pytest
 
-# 5. Start the FastAPI app
+# 5. Start the FastAPI app (from repo root so profiles/ resolves)
 uvicorn vai_agent.main:app --reload
 ```
 
-Open <http://127.0.0.1:8000/health> — you should see:
+### Endpoints you should recognise
+
+Open <http://127.0.0.1:8000/health> — liveness probe (always `ok` if the process
+is up):
 
 ```json
 { "status": "ok", "app": "sql-assistant", "version": "0.1.0", "env": "dev" }
 ```
 
-Interactive API docs are available at `/docs` (disabled automatically when
-`APP_ENV=prod`).
+Open <http://127.0.0.1:8000/ready> — readiness: profile load, DB-backed agent,
+and Chroma memory must all initialise for `status: ok` without HTTP 503.
+
+Interactive API docs: `/docs` and `/redoc` (automatically disabled when
+`APP_ENV=prod`). Agent tooling: **`GET /agent/tools`**,
+**`POST /agent/tools/{tool_name}/invoke`** (needs a reachable SQL Server matching
+your `DB_*` settings).
+
+### Optional: OpenRouter (LLM)
+
+Set `LLM_PROVIDER=openrouter`, `OPENROUTER_API_KEY`, and `OPENROUTER_MODEL` per
+`.env.example`. With valid credentials an `OpenRouterChatService` is attached at
+startup as **`request.app.state.llm_service`** and closed when the ASGI lifespan
+ends. Omit or leave `LLM_PROVIDER=none` to skip outbound LLM calls.
 
 ---
 
@@ -85,57 +98,68 @@ so any of the following work as drop-in replacements (PowerShell shown):
 
 ---
 
-## Project layout (Phase 1)
+## Project layout
 
 ```text
 sql-assistant/
-├── pyproject.toml          # build + tooling config (ruff, pytest)
-├── .env.example            # documented environment variables
-├── Makefile                # convenience targets
-├── PROGRESS.md             # phase tracker (current + completed + next)
-├── README.md
-├── src/
-│   └── vai_agent/
-│       ├── __init__.py
-│       ├── main.py         # ASGI entry: `uvicorn vai_agent.main:app`
-│       ├── bootstrap.py    # FastAPI app factory
-│       ├── config/
-│       │   ├── settings.py        # Pydantic v2 BaseSettings
-│       │   └── logging_config.py  # text / JSON logging
-│       └── api/
-│           └── health.py   # GET /health
+├── pyproject.toml
+├── .env.example
+├── Makefile
+├── PROGRESS.md             # phased tracker
+├── profiles/               # e.g. profiles/dbnwind/
+├── scripts/                # CLI wrappers (validate_profile, benchmarks, ...)
+├── docs/                   # ARCHITECTURE, COMPATIBILITY, operations, benchmarking
+├── data/input/             # schema SQL snapshots for profiling
+├── src/vai_agent/
+│   ├── main.py             # uvicorn imports `app`
+│   ├── bootstrap.py        # app factory + startup wiring + optional LLM client
+│   ├── api/                # health (/health, /ready) + agent routes
+│   ├── vai_app/            # Agent / ToolRegistry / context enhancer
+│   ├── tools/              # SecureRunSql, ExplainSchema, ProfileSearch
+│   ├── db/                  # ODBC connection + MSSQL runner + schema_extractor
+│   ├── memory/              # Chroma persistent AgentMemory
+│   ├── llm/                 # OpenRouter (OpenAI-compatible) chat completions
+│   ├── knowledge/          # ProfileLoader / generators / benchmark
+│   ├── security/
+│   ├── users/
+│   └── config/
 └── tests/
-    ├── conftest.py
-    ├── test_settings.py
-    ├── test_logging_config.py
-    └── test_health.py
 ```
 
-Folders for later phases (`llm/`, `db/`, `tools/`, `memory/`, `knowledge/`,
-`security/`, `users/`, `profiles/`, `scripts/`, `docs/`) will be created
-**when their phase begins**, to keep the repo free of empty placeholders.
+---
+
+## Profile CLI (high level)
+
+```bash
+python scripts/generate_profile_from_schema.py \
+  --input data/input/schema.sql \
+  --profile dbnwind
+
+python scripts/validate_profile.py --profile dbnwind
+python scripts/benchmark_questions.py --profile dbnwind    # requires real DB/schema
+python scripts/seed_memory.py --profile dbnwind              # refreshes Chroma from profile
+```
 
 ---
 
 ## Configuration
 
-All configuration is environment-driven. See [`.env.example`](./.env.example)
-for the full list. Phase 1 keys:
+Primary keys mirror [`.env.example`](./.env.example):
 
-| Variable      | Default       | Notes                                        |
-| ------------- | ------------- | -------------------------------------------- |
-| `APP_ENV`     | `dev`         | One of `dev`, `staging`, `prod`              |
-| `APP_HOST`    | `127.0.0.1`   | HTTP bind host                               |
-| `APP_PORT`    | `8000`        | HTTP bind port (1..65535)                    |
-| `LOG_LEVEL`   | `INFO`        | `DEBUG` / `INFO` / `WARNING` / `ERROR`       |
-| `LOG_FORMAT`  | `text`        | `text` (human) or `json` (structured)        |
+| Variable            | Typical value      | Role                                      |
+|--------------------|---------------------|--------------------------------------------|
+| `APP_ENV`          | `dev`               | Enables `/docs`; use `prod` to lock down   |
+| `DB_*`             | ODBC + SQL Server   | Required by agent tools + `/ready` checks  |
+| `DB_PROFILE_ID`    | `dbnwind`           | Subdirectory under `PROFILES_ROOT`         |
+| `CHROMA_PERSIST_DIR` | `.data/chroma`    | Persistent vector storage                  |
+| `LLM_PROVIDER`     | `none` / `openrouter` | Attaches `app.state.llm_service`       |
 
-When `APP_ENV=prod`, `/docs` and `/redoc` are disabled automatically.
+See `.env.example` for the full annotated list (`USER_RESOLVER_MODE`,
+`CONTEXT_MAX_TOKENS`, OpenRouter base URL/timeouts, etc.).
 
 ---
 
 ## Roadmap
 
 See [`PROGRESS.md`](./PROGRESS.md) for the live status of each phase. The
-master specification lives in `vai-prompt.txt` and is the source of truth
-for what every future phase must deliver.
+master specification lives in `vai-prompt.txt`.

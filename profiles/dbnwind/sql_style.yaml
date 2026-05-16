@@ -1,0 +1,10 @@
+dialect: tsql
+use_top: true
+no_select_star: true
+schema_qualified_tables: true
+quote_identifiers: when_needed
+default_ordering: "Prefer stable ordering by primary key or business key."
+date_handling: "Use explicit range predicates and avoid implicit conversions."
+null_handling: "Handle NULL explicitly with IS NULL / IS NOT NULL."
+aggregation_style: "Use explicit GROUP BY columns and named aggregate aliases."
+pagination_style: top

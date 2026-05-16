@@ -1,0 +1,98 @@
+allowed_schemas:
+  - dbo
+blocked_schemas:
+  - sys
+  - INFORMATION_SCHEMA
+allowed_tables:
+  - Customers
+  - Suppliers
+  - Categories
+  - Products
+  - Orders
+  - Employees
+  - Shippers
+  - "Order Details"
+  - CustomerCustomerDemo
+  - CustomerDemographics
+  - EmployeeTerritories
+  - Region
+  - Territories
+blocked_tables: []
+
+pii_columns:
+  - Customers.ContactName
+  - Customers.Phone
+  - Customers.Address
+  - Employees.HomePhone
+  - Employees.Address
+sensitive_columns:
+  - Orders.Freight
+secret_columns: []
+
+allowed_operations:
+  - SELECT
+blocked_operations:
+  - INSERT
+  - UPDATE
+  - DELETE
+  - MERGE
+  - DROP
+  - ALTER
+  - TRUNCATE
+  - EXEC
+
+max_rows: 10000
+default_limit: 100
+max_execution_seconds: 30
+
+allowed_functions: []
+blocked_functions:
+  - OPENROWSET
+  - OPENQUERY
+  - OPENDATASOURCE
+  - xp_cmdshell
+blocked_sql_features:
+  - PIVOT
+  - UNPIVOT
+  - OPENJSON
+  - FOR XML
+  - FOR JSON
+
+user_access_groups:
+  - name: analyst
+    description: Default read-only analyst access.
+    allowed_schemas:
+      - dbo
+    allowed_tables:
+      - Customers
+      - Products
+      - Orders
+      - "Order Details"
+      - Categories
+      - Shippers
+    blocked_columns:
+      - Customers.ContactName
+      - Customers.Address
+      - Customers.Phone
+
+masking_rules:
+  - column: Customers.ContactName
+    mask_type: redact
+    applies_to_groups:
+      - analyst
+  - column: Customers.Phone
+    mask_type: partial
+    applies_to_groups:
+      - analyst
+
+row_filters:
+  - table: Orders
+    expression: "OrderDate >= '1996-01-01'"
+    applies_to_groups:
+      - finance
+  - table: "Order Details"
+    expression: "Quantity > 0"
+    applies_to_groups:
+      - finance
+
+min_group_size: 1

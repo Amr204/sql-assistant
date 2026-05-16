@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from vai_agent.config.settings import AppEnv, Settings, get_settings
+from vai_agent.config.settings import AppEnv, LlmProvider, Settings, get_settings
 
 
 def test_defaults_load_without_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -21,6 +21,7 @@ def test_defaults_load_without_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.log_level == "INFO"
     assert settings.log_format == "text"
     assert settings.context_max_tokens == 4_000
+    assert settings.llm_provider is LlmProvider.none
     assert settings.is_dev is True
     assert settings.is_prod is False
 

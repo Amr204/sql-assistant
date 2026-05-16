@@ -1,0 +1,31 @@
+status_meanings:
+  - table: Orders
+    column: ShipVia
+    values:
+      "1": "Shipped with Speedy Express"
+      "2": "Shipped with United Package"
+      "3": "Shipped with Federal Shipping"
+
+type_meanings: []
+
+rules:
+  - id: br_orders_shipped_definition
+    description: An order is considered shipped when ShippedDate IS NOT NULL.
+    confidence: medium
+    needs_review: true
+    tables:
+      - Orders
+
+  - id: br_orderdetails_line_amount
+    description: Order line value equals UnitPrice * Quantity * (1 - Discount).
+    confidence: medium
+    needs_review: true
+    tables:
+      - "Order Details"
+
+  - id: br_products_in_stock
+    description: A product is in stock when UnitsInStock > 0.
+    confidence: low
+    needs_review: true
+    tables:
+      - Products

@@ -8,7 +8,8 @@ meaningful to surface.
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from vai_agent.config.settings import AppEnv, Settings, get_settings
@@ -23,6 +24,16 @@ class HealthResponse(BaseModel):
     app: str = Field(description="Service name.")
     version: str = Field(description="Service version.")
     env: AppEnv = Field(description="Deployment environment.")
+
+
+class ReadyResponse(BaseModel):
+    """Response model for ``GET /ready``."""
+
+    status: str = Field(description="'ok' when fully ready, otherwise 'degraded'.")
+    profile_ready: bool
+    agent_ready: bool
+    memory_ready: bool
+    errors: list[str] = Field(default_factory=list)
 
 
 @router.get("/health", response_model=HealthResponse, summary="Liveness probe")
@@ -40,4 +51,22 @@ def health() -> HealthResponse:
         app=settings.app_name,
         version=settings.app_version,
         env=settings.app_env,
+    )
+
+
+@router.get("/ready", response_model=ReadyResponse, summary="Readiness probe")
+def ready(request: Request) -> ReadyResponse | JSONResponse:
+    readiness = getattr(request.app.state, "readiness", None) or {}
+    response = ReadyResponse(
+        status="ok" if readiness.get("ready") else "degraded",
+        profile_ready=bool(readiness.get("profile_ready")),
+        agent_ready=bool(readiness.get("agent_ready")),
+        memory_ready=bool(readiness.get("memory_ready")),
+        errors=[str(e) for e in readiness.get("errors", [])],
+    )
+    if response.status == "ok":
+        return response
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content=response.model_dump(),
     )

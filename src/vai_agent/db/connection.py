@@ -67,11 +67,17 @@ class ConnectionSettings(BaseSettings):
         env_prefix="DB_",
     )
 
-    host: str = Field(description="SQL Server hostname or IP address.")
+    host: str = Field(default="127.0.0.1", description="SQL Server hostname or IP address.")
     port: int = Field(default=1433, ge=1, le=65535, description="TCP port.")
-    database: str = Field(description="Target database name.")
-    username: str = Field(description="SQL login username (read-only user recommended).")
-    password: SecretStr = Field(description="SQL login password.")
+    database: str = Field(default="DBnwind", description="Target database name.")
+    username: str = Field(
+        default="readonly_user",
+        description="SQL login username (read-only user recommended).",
+    )
+    password: SecretStr = Field(
+        default=SecretStr("change_me"),
+        description="SQL login password.",
+    )
     driver: str = Field(
         default="ODBC Driver 18 for SQL Server",
         description="ODBC driver name as it appears in odbcinst.ini / registry.",

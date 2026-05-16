@@ -17,6 +17,10 @@ POL007  Blocked table (explicit table deny-list in policy)
 POL008  SELECT INTO — creates a table, not permitted
 POL009  Empty or unparseable query
 POL010  Injection-pattern detected in query text
+POL011  Table uses a schema outside the allow-list
+POL012  Table is outside the allowed table list
+POL013  Required row-filter predicate missing
+POL014  Blocked SQL feature token detected
 
 Design notes
 ------------
@@ -153,6 +157,11 @@ def _collect_function_names(stmt: exp.Expression) -> set[str]:
     return names
 
 
+def _star_allowed(node: exp.Star) -> bool:
+    parent = node.parent
+    return isinstance(parent, exp.Count)
+
+
 def _table_db_name(tbl: exp.Table) -> str:
     """Return the schema/qualifier db-part of a table reference, lowercased."""
     db_arg = tbl.args.get("db")
@@ -227,9 +236,18 @@ class SqlPolicyEngine:
         self._blocked_tables_lower: frozenset[str] = frozenset(
             t.lower() for t in policy.blocked_tables
         )
+        self._allowed_tables_lower: frozenset[str] = frozenset(
+            t.lower() for t in policy.allowed_tables
+        )
+        self._allowed_schemas_lower: frozenset[str] = frozenset(
+            s.lower() for s in policy.allowed_schemas
+        )
         self._blocked_funcs_lower: frozenset[str] = (
             _ALWAYS_BLOCKED_FUNCTIONS
             | frozenset(f.lower() for f in policy.blocked_functions)
+        )
+        self._blocked_features_lower: frozenset[str] = frozenset(
+            f.lower() for f in policy.blocked_sql_features
         )
 
     def validate(
@@ -384,7 +402,7 @@ class SqlPolicyEngine:
         # ------------------------------------------------------------------ #
         # 10. SELECT *                                                         #
         # ------------------------------------------------------------------ #
-        if stmt.find(exp.Star) is not None:
+        if any(not _star_allowed(star) for star in stmt.find_all(exp.Star)):
             violations.append(PolicyViolation(
                 code="POL003",
                 severity="error",
@@ -448,6 +466,58 @@ class SqlPolicyEngine:
                         message="Query references a table that is not accessible.",
                     ))
                     break
+
+        # ------------------------------------------------------------------ #
+        # 15. Allowed schemas / tables                                        #
+        # ------------------------------------------------------------------ #
+        if self._allowed_schemas_lower:
+            for tbl in stmt.find_all(exp.Table):
+                schema_name = _table_db_name(tbl)
+                if schema_name and schema_name not in self._allowed_schemas_lower:
+                    violations.append(PolicyViolation(
+                        code="POL011",
+                        severity="error",
+                        message="Query references a schema outside the allowed set.",
+                    ))
+                    break
+        if self._allowed_tables_lower:
+            for tbl in stmt.find_all(exp.Table):
+                if tbl.name.lower() not in self._allowed_tables_lower:
+                    violations.append(PolicyViolation(
+                        code="POL012",
+                        severity="error",
+                        message="Query references a table outside the allowed set.",
+                    ))
+                    break
+
+        # ------------------------------------------------------------------ #
+        # 16. Blocked SQL features                                            #
+        # ------------------------------------------------------------------ #
+        for feature in self._blocked_features_lower:
+            if re.search(rf"\b{re.escape(feature)}\b", sql_stripped, re.IGNORECASE):
+                violations.append(PolicyViolation(
+                    code="POL014",
+                    severity="error",
+                    message="Query contains a blocked SQL feature.",
+                ))
+                break
+
+        # ------------------------------------------------------------------ #
+        # 17. Row filters                                                      #
+        # ------------------------------------------------------------------ #
+        for rf in self._policy.row_filters:
+            if rf.applies_to_groups and not any(g in (user_groups or []) for g in rf.applies_to_groups):
+                continue
+            table_referenced = any(t.name.lower() == rf.table.lower() for t in stmt.find_all(exp.Table))
+            if not table_referenced:
+                continue
+            if rf.expression.lower() not in sql_stripped.lower():
+                violations.append(PolicyViolation(
+                    code="POL013",
+                    severity="error",
+                    message="Query does not include a required row-level filter predicate.",
+                ))
+                break
 
         # ------------------------------------------------------------------ #
         # Determine outcome                                                    #

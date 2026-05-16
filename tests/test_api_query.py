@@ -76,7 +76,15 @@ def client_with_agent(dev_agent: Agent) -> Iterator[TestClient]:
 def client_no_agent() -> Iterator[TestClient]:
     get_settings.cache_clear()
     app = create_app()
-    # No agent attached — endpoints must return 503.
+    # Explicitly clear startup wiring to test 503 behaviour.
+    app.state.agent = None
+    app.state.readiness = {
+        "ready": False,
+        "profile_ready": bool(getattr(app.state, "profile", None)),
+        "agent_ready": False,
+        "memory_ready": bool(getattr(app.state, "memory", None)),
+        "errors": ["agent disabled by test fixture"],
+    }
     with TestClient(app) as c:
         yield c
     get_settings.cache_clear()
