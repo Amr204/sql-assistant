@@ -55,6 +55,13 @@ class Settings(BaseSettings):
         description="Log formatter: 'text' for human-readable, 'json' for structured logs.",
     )
 
+    context_max_tokens: int = Field(
+        default=4_000,
+        ge=256,
+        le=128_000,
+        description="Maximum estimated tokens for LLM context built by the context enhancer.",
+    )
+
     @property
     def is_dev(self) -> bool:
         return self.app_env is AppEnv.dev

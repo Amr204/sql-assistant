@@ -49,7 +49,7 @@ abstractions inside `src/vai_agent/`.
 | Schema explainer            | `vai_agent.tools.ExplainSchemaTool`                         |
 | Knowledge search            | `vai_agent.tools.ProfileSearchTool`                         |
 | `AgentMemory` (persistent)  | _Not implemented yet — Phase 7+ (ChromaDB-backed)_          |
-| LLM context enhancer        | _Not implemented yet — Phase 7+_                            |
+| LLM context enhancer        | `vai_agent.vai_app.context_enhancer.ContextEnhancer` (Phase 8) |
 | Conversation filters        | _Not implemented yet — partly subsumed by `SqlPolicyEngine`_|
 | `AuditConfig`               | _Not implemented yet — Phase 6's logging only_              |
 | UI feature flags            | _Not implemented yet_                                       |
@@ -160,7 +160,7 @@ in Phase 6; each lists which phase will pick it up:
 | Spec item                           | Planned phase |
 | ----------------------------------- | ------------- |
 | OpenRouter / OpenAI-compatible LLM  | Phase 7       |
-| Custom LLM context enhancer         | Phase 7       |
+| Custom LLM context enhancer         | Phase 8 (done) |
 | LLM-driven planner (NL → tool call) | Phase 7       |
 | `AgentMemory` (ChromaDB)            | Phase 7       |
 | Memory seeding script               | Phase 7       |

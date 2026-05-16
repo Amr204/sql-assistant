@@ -20,6 +20,7 @@ def test_defaults_load_without_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.app_port == 8000
     assert settings.log_level == "INFO"
     assert settings.log_format == "text"
+    assert settings.context_max_tokens == 4_000
     assert settings.is_dev is True
     assert settings.is_prod is False
 

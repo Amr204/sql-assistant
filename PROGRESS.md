@@ -7,7 +7,68 @@ Live tracker for the phased delivery of SQL Assistant. The master spec is
 
 ## Current phase
 
-**Phase 7 — Persistent memory (ChromaDB). Status: ✅ complete (lint + 354 tests green).**
+**Phase 8 — LLM context enhancer. Status: ✅ complete (lint + 370 tests green, excluding slow Chroma ONNX tests).**
+
+Goal: given a natural-language question and a loaded profile, build a
+compact, token-bounded context string for the LLM: glossary matching,
+table selection, example retrieval, security constraints, and optional
+Chroma memory boosts — without sending the full schema.
+
+### Completed tasks (Phase 8)
+
+- [x] **`vai_agent.vai_app.context_enhancer.ContextEnhancer`** —
+      `enhance(question, user) → EnhancementResult` with structured
+      fields (`glossary_matches`, `selected_tables`, `examples`,
+      `security`, `context_text`, `estimated_tokens`, `truncated`).
+- [x] **Glossary matching** — AR/EN/synonyms/common phrases plus
+      per-table `business_name_ar` / `business_name_en` for mapped tables.
+- [x] **Table selection** — scored from glossary maps, direct name
+      mentions, table profiles, examples, memory hits; relationship
+      expansion only when join-like hints are present (`each`, `join`,
+      `لكل`, …).
+- [x] **Example retrieval** — lexical overlap + table affinity; memory
+      `kind=example` hits merged when memory is attached.
+- [x] **Security context** — global policy + per-group blocked columns,
+      masking rules, row filters, PII/sensitive/secret columns scoped to
+      selected tables.
+- [x] **Token-limited assembly** — section priority: security → glossary
+      → schema (selected tables only) → relationships → business rules
+      → examples → SQL style; char budget ≈ `max_tokens × 4`.
+- [x] **`ContextEnhancerConfig`** + **`CONTEXT_MAX_TOKENS`** in
+      `Settings` / `.env.example`.
+- [x] **New tests: 16** in `tests/test_context_enhancer.py` (glossary
+      AR/EN, table selection, examples, security, truncation, memory).
+
+### Pending tasks (Phase 8)
+
+- [ ] _None._ Phase 8 scope is feature-complete. Wiring
+      `ContextEnhancer` into `build_agent()` / FastAPI chat endpoint is
+      Phase 9+ (LLM provider).
+
+### Test results (Phase 8)
+
+```powershell
+.\.venv\Scripts\ruff.exe check .
+.\.venv\Scripts\pytest.exe -q --ignore=tests/test_memory_factory.py
+# 347 passed in ~4s
+.\.venv\Scripts\pytest.exe tests/test_context_enhancer.py -q
+# 16 passed
+```
+
+### Files created or modified (Phase 8)
+
+```
+src/vai_agent/vai_app/context_enhancer.py   (new)
+src/vai_agent/vai_app/__init__.py           (modified: exports)
+src/vai_agent/config/settings.py            (modified: context_max_tokens)
+.env.example                                (modified: CONTEXT_MAX_TOKENS)
+tests/test_context_enhancer.py              (new)
+PROGRESS.md                                 (modified)
+```
+
+---
+
+## Phase 7 — Persistent memory (ChromaDB) ✅
 
 Goal: chunk profile knowledge into atomic documents, store them in a
 persistent ChromaDB vector store, verify the data survives process
@@ -950,4 +1011,5 @@ profile + memory pipeline is verified.
 | 5     | done     | DB connection + MSSQL runner; 49 new tests; all offline mocked.                       |
 | 6     | done     | Tools + registry + agent + FastAPI + UserResolver + COMPATIBILITY.md; 76 new tests.   |
 | 7     | done     | Chunking + ChromaDB AgentMemory + seed CLI + persistence verified; 43 new tests.       |
-| 8+    | planned  | Context enhancer (memory → agent wiring), rate limiting, audit log persistence.        |
+| 8     | done     | Context enhancer: glossary, tables, examples, security, token budget; 16 new tests.   |
+| 9+    | planned  | LLM provider (OpenRouter), agent wiring, rate limiting, audit log persistence.         |
