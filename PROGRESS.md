@@ -7,7 +7,7 @@ Live tracker for the phased delivery of SQL Assistant. The master spec is
 
 ## Current phase
 
-**Phase 10 — Final hardening. Status: ✅ complete (lint + 404 tests green).**
+**Phase 10 — Final hardening. Status: ✅ complete (lint + 424 tests green).**
 
 Goal: production wiring, readiness probing, stricter SQL policy
 enforcement, complete dbnwind profile facets, benchmark hardening,

@@ -76,6 +76,13 @@ class Settings(BaseSettings):
         default=".data/chroma",
         description="Persistent directory for ChromaDB collections.",
     )
+    vanna_file_storage_dir: str = Field(
+        default=".data/vanna_files",
+        description=(
+            "Root directory for Vanna RunSqlTool CSV exports (LocalFileSystem); "
+            "per-user subfolders are created under this path — never the project root."
+        ),
+    )
     user_resolver_mode: Literal["dev", "header", "future_oidc"] = Field(
         default="dev",
         description="User identity resolver mode.",

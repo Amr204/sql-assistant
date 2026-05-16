@@ -7,7 +7,6 @@ tests construct fresh instances with overridden settings.
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
 from pathlib import Path
 
 import chromadb
@@ -21,7 +20,6 @@ from vai_agent.config.logging_config import configure_logging
 from vai_agent.config.settings import Settings, get_settings
 from vai_agent.db.connection import get_connection_settings
 from vai_agent.knowledge import ProfileLoader
-from vai_agent.llm.factory import build_chat_completion_client
 from vai_agent.memory import create_memory
 from vai_agent.vanna_integration.factory import build_vanna_runtime
 from vai_agent.vanna_integration.runtime import VaiVannaRuntime
@@ -118,19 +116,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings)
 
-    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        yield
-        svc = getattr(app.state, "llm_service", None)
-        if svc is None:
-            return
-        closer = getattr(svc, "close", None)
-        if callable(closer):
-            closer()
-
     app = FastAPI(
         title=settings.app_name,
         version=__version__,
-        lifespan=lifespan,
         docs_url="/docs" if not settings.is_prod else None,
         redoc_url="/redoc" if not settings.is_prod else None,
     )
@@ -154,8 +142,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "api_base_url": "",
             },
         )
-
-    app.state.llm_service = build_chat_completion_client(settings)
 
     logger.info(
         "application initialised",

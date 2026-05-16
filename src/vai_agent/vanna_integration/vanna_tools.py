@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 
+from vanna.capabilities.file_system import FileSystem
 from vanna.core.tool import Tool, ToolContext, ToolResult
 from vanna.tools.run_sql import RunSqlTool
 
@@ -83,6 +84,7 @@ class ProfileSearchVannaTool(Tool[ProfileSearchArgs]):
 def build_policy_run_sql_tool(
     sql_runner: PolicySqlRunner,
     *,
+    file_system: FileSystem | None = None,
     custom_tool_name: str = "run_sql",
     custom_tool_description: str | None = None,
 ) -> RunSqlTool:
@@ -96,16 +98,22 @@ def build_policy_run_sql_tool(
     )
     return RunSqlTool(
         sql_runner,
+        file_system=file_system,
         custom_tool_name=custom_tool_name,
         custom_tool_description=desc,
     )
 
 
-def build_secure_run_sql_tool(sql_runner: PolicySqlRunner) -> RunSqlTool:
+def build_secure_run_sql_tool(
+    sql_runner: PolicySqlRunner,
+    *,
+    file_system: FileSystem | None = None,
+) -> RunSqlTool:
     """Build the legacy ``secure_run_sql`` tool name (alias of :func:`build_policy_run_sql_tool`)."""
 
     return build_policy_run_sql_tool(
         sql_runner,
+        file_system=file_system,
         custom_tool_name="secure_run_sql",
         custom_tool_description=(
             "Alias for run_sql. Secure SELECT-only SQL execution against SQL Server."

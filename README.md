@@ -64,11 +64,11 @@ Interactive API docs: `/docs` and `/redoc` (automatically disabled when
 `APP_ENV=prod`). Agent tooling: **`GET /agent/tools`**,
 **`POST /agent/tools/{tool_name}/invoke`** (rate-limited; needs SQL Server).
 
-**`POST /chat`** uses **`vanna.servers.base.ChatHandler.handle_poll`**, which
-calls **`Agent.send_message`** (full Vanna agent loop — not manual
-`llm_service.send_request` / `tool_registry.execute`).
+**`POST /chat`** uses **`GuardedChatHandler`** (subclass of Vanna **`ChatHandler`**): rate limits,
+concurrency, prompt-injection checks, and audit run **before** **`Agent.send_message`**
+(the full Vanna agent loop — not manual `llm_service.send_request` / `tool_registry.execute`).
 
-Official Vanna HTTP endpoints are also registered:
+Official Vanna HTTP endpoints are registered with the same **`GuardedChatHandler`**:
 
 - **`POST /api/vanna/v2/chat_poll`**
 - **`POST /api/vanna/v2/chat_sse`**
@@ -76,12 +76,12 @@ Official Vanna HTTP endpoints are also registered:
 
 Stock Vanna UI is served at **`GET /`** when routes are registered.
 
-### Optional: OpenRouter (LLM)
+### Optional: OpenRouter (LLM for Vanna Agent)
 
 Set `LLM_PROVIDER=openrouter`, `OPENROUTER_API_KEY`, and `OPENROUTER_MODEL` per
-`.env.example`. With valid credentials an `OpenRouterChatService` is attached at
-startup as **`request.app.state.llm_service`** and closed when the ASGI lifespan
-ends. Omit or leave `LLM_PROVIDER=none` to skip outbound LLM calls.
+`.env.example`. The **Vanna** agent’s `llm_service` is built in
+`vai_agent.vanna_integration.openrouter_llm` (`OpenAILlmService` against OpenRouter).
+Use `LLM_PROVIDER=none` for **`MockLlmService`** (no outbound HTTP).
 
 ---
 
@@ -123,9 +123,10 @@ sql-assistant/
 ├── data/input/             # schema SQL snapshots for profiling
 ├── src/vai_agent/
 │   ├── main.py             # uvicorn imports `app`
-│   ├── bootstrap.py        # app factory + startup wiring + optional LLM client
-│   ├── api/                # health (/health, /ready) + agent routes
-│   ├── vai_app/            # Agent / ToolRegistry / context enhancer
+│   ├── bootstrap.py        # app factory + startup wiring + Vanna routes
+│   ├── api/                # health (/health, /ready) + agent + /chat
+│   ├── vai_app/            # Context enhancer + legacy sync Agent (tests only)
+│   ├── vanna_integration/ # Vanna Agent factory, GuardedChatHandler, routes
 │   ├── tools/              # SecureRunSql, ExplainSchema, ProfileSearch
 │   ├── db/                  # ODBC connection + MSSQL runner + schema_extractor
 │   ├── memory/              # Chroma persistent AgentMemory
@@ -163,7 +164,7 @@ Primary keys mirror [`.env.example`](./.env.example):
 | `DB_*`             | ODBC + SQL Server   | Required by agent tools + `/ready` checks  |
 | `DB_PROFILE_ID`    | `dbnwind`           | Subdirectory under `PROFILES_ROOT`         |
 | `CHROMA_PERSIST_DIR` | `.data/chroma`    | Persistent vector storage                  |
-| `LLM_PROVIDER`     | `none` / `openrouter` | Attaches `app.state.llm_service`       |
+| `LLM_PROVIDER`     | `none` / `openrouter` | Configures **Vanna** `llm_service` on `app.state.agent` |
 
 See `.env.example` for the full annotated list (`USER_RESOLVER_MODE`,
 `CONTEXT_MAX_TOKENS`, OpenRouter base URL/timeouts, etc.).

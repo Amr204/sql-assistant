@@ -8,6 +8,7 @@ from pathlib import Path
 from vanna.core.agent import Agent as VannaAgent
 from vanna.core.registry import ToolRegistry
 from vanna.integrations.chromadb import ChromaAgentMemory
+from vanna.integrations.local import LocalFileSystem
 from vanna.tools.agent_memory import (
     SaveQuestionToolArgsTool,
     SaveTextMemoryTool,
@@ -58,6 +59,14 @@ def _build_legacy_user_resolver(settings: Settings) -> UserResolver:
             ),
         )
     return UserResolver(settings.user_resolver_mode)
+
+
+def _vanna_sql_file_system(settings: Settings) -> LocalFileSystem:
+    """Pinned root for Vanna ``RunSqlTool`` CSV exports (``query_results_*.csv``)."""
+
+    root = Path(settings.vanna_file_storage_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    return LocalFileSystem(working_directory=str(root.resolve()))
 
 
 def _tool_groups(profile: Profile, tool_name: str, fallback: list[str]) -> list[str]:
@@ -121,6 +130,8 @@ def build_vanna_runtime(
     audit = JsonlVannaAuditLogger()
     registry = ToolRegistry(audit_logger=audit)
 
+    sql_fs = _vanna_sql_file_system(settings)
+
     fb = ["analyst", "admin"]
     sql_groups = _tool_groups(profile, "run_sql", fb)
     schema_groups = _tool_groups(profile, "explain_schema", fb)
@@ -128,12 +139,17 @@ def build_vanna_runtime(
     secure_alias_groups = _tool_groups(profile, "secure_run_sql", sql_groups)
 
     registry.register_local_tool(
-        build_policy_run_sql_tool(policy_runner, custom_tool_name="run_sql"),
+        build_policy_run_sql_tool(
+            policy_runner,
+            file_system=sql_fs,
+            custom_tool_name="run_sql",
+        ),
         sql_groups,
     )
     registry.register_local_tool(
         build_policy_run_sql_tool(
             policy_runner,
+            file_system=sql_fs,
             custom_tool_name="secure_run_sql",
             custom_tool_description="Alias for run_sql. Secure SELECT-only SQL execution.",
         ),

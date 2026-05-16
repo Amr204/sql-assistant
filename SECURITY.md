@@ -27,6 +27,11 @@ This document describes the effective runtime security controls in Phase 10.
   **basic** ``min_group_size`` filter on count-like columns (not a formal privacy guarantee)
 - **Read-only DB access intent**
   - ODBC connection string uses `ApplicationIntent=ReadOnly`
+- **Vanna ``RunSqlTool`` CSV exports**
+  - ``LocalFileSystem(working_directory=…)`` is pinned to ``Settings.vanna_file_storage_dir``
+    (default ``.data/vanna_files``). Per-user hash subfolders hold ``query_results_*.csv`` — never
+    the repository root. Remove with ``scripts/clean_runtime_artifacts.*`` before shipping; no
+    automatic TTL (operational purge only).
 
 ## Not Yet Enforced (Known Gaps)
 

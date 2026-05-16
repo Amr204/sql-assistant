@@ -11,6 +11,7 @@ import vai_agent.bootstrap as bootstrap
 from vai_agent.config.settings import LlmProvider, Settings
 from vai_agent.db.connection import ConnectionSettings
 from vai_agent.knowledge import ProfileLoader
+from vai_agent.vanna_integration.runtime import VaiVannaRuntime
 
 
 @pytest.fixture()
@@ -48,6 +49,8 @@ def test_create_app_sets_runtime_state_when_startup_succeeds(
     )
 
     app = bootstrap.create_app(settings)
+    assert getattr(app.state, "agent", None) is not None
+    assert isinstance(app.state.agent, VaiVannaRuntime)
     assert getattr(app.state, "llm_service", None) is None
     assert app.state.profile.meta.profile_id == "sample"
     assert app.state.agent is not None

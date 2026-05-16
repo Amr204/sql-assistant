@@ -33,11 +33,12 @@ data/input/*
 !data/input/.gitkeep
 logs/
 *.log
+*.sqlite
+*.db
+query_results_*.csv
 
-# Generated benchmark output (re-run benchmark_questions.py to recreate)
-reports/benchmark_results.json
-reports/benchmark_report.md
-reports/eval/
+# Reports (generated; safe to regenerate — do not put secrets here)
+reports/
 
 # IDE
 .vscode/

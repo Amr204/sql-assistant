@@ -5,7 +5,7 @@
 - Real **Vanna 2.x** stack: `Agent`, `ToolRegistry`, persistent memory, `UserResolver`, SQL via **`RunSqlTool`** / policy gate, OpenRouter-compatible LLM, FastAPI wiring.
 - No “Vanna-inspired” substitute; inspect installed package APIs.
 - Startup: profile → policies → Chroma memory → LLM → resolver → agent on `app.state.agent` (non-null when healthy).
-- **`POST /chat`**: prompt-injection gate + rate limits, then **`ChatHandler.handle_poll`** → **`Agent.send_message`** (no manual `LlmService.send_request` / `ToolRegistry.execute` in this route).
+- **`POST /chat`**: **`GuardedChatHandler`** → **`ChatHandler.handle_poll`** / **`handle_stream`** → **`Agent.send_message`** (no manual `LlmService.send_request` / `ToolRegistry.execute` in this route).
 - Audit, rate limits, benchmarks, full docs (partially deferred below).
 
 ## What existed before this pass
@@ -24,13 +24,13 @@
 
 1. **`pyproject.toml`**: added `vanna>=2.0.2,<3`, `openai>=1.40,<2`; pytest ignores `PydanticDeprecatedSince20` emitted by Vanna’s vendored models.
 2. **`vai_agent/vanna_integration/`**:
-   - `factory.build_vanna_runtime` — builds **Vanna `Agent`** with `ToolRegistry`, `LegacyUserResolverBridge`, official **`ChromaAgentMemory`** (`vanna.integrations.chromadb`), `ProfileLlmContextEnhancer`, `JsonlVannaAuditLogger`, `RunSqlTool` as **`secure_run_sql`** over **`PolicySqlRunner`** (`SqlRunner`).
+   - `factory.build_vanna_runtime` — **`run_sql`** + **`secure_run_sql`** `RunSqlTool` instances over **`PolicySqlRunner`**, with **`LocalFileSystem(working_directory=settings.vanna_file_storage_dir)`** for CSV exports.
    - `openrouter_llm.build_vanna_llm_service` — **`OpenAILlmService`** with `base_url` when OpenRouter configured; else **`MockLlmService`**.
    - Vanna tools wrapping existing explain/search logic; SQL execution only after `SqlPolicyEngine` / `PiiPolicyEngine` in `PolicySqlRunner`.
 3. **`bootstrap.py`**: memory first, then `build_vanna_runtime`; stores **`VaiVannaRuntime`** on `app.state.agent`; readiness adds `tools_ready`, `llm_ready`; registers **`chat`** router.
 4. **`api/query.py`**: async routes using Vanna `get_schemas` / `execute`.
-5. **`api/chat.py`**: **`POST /chat`** → **`vanna.servers.base.ChatHandler.handle_poll`** (Vanna agent workflow). Context for the LLM still comes from **`ProfileLlmContextEnhancer`** on the Agent.
-6. **`bootstrap.py`**: calls **`register_chat_routes`** so **`POST /api/vanna/v2/chat_poll`**, **`chat_sse`**, **`chat_websocket`** (and stock **`GET /`**) are available.
+5. **`api/chat.py`**: **`POST /chat`** → **`GuardedChatHandler`** (then Vanna agent stream).
+6. **`bootstrap.py`**: **`register_chat_routes`** from **`vanna_fastapi_routes`** with **`GuardedChatHandler`**; removed **`app.state.llm_service`** — LLM only via **`runtime.vanna.llm_service`**.
 7. **`api/health.py`**: `/ready` exposes `tools_ready`, `llm_ready`.
 8. **`security/audit_log.py`**, **`security/prompt_injection.py`**: JSONL audit + lightweight injection heuristics.
 9. **`api/rate_limit.py`**: user / IP / group / daily / concurrency limits for `/chat` and **`POST /agent/tools/.../invoke`**.
@@ -46,12 +46,12 @@
 - `src/vai_agent/config/settings.py`, `memory/memory_factory.py`
 - `src/vai_agent/security/audit_log.py`, `security/prompt_injection.py`
 - `src/vai_agent/vanna_integration/*` (new package)
-- `tests/test_api_query.py`, `test_bootstrap_startup.py`, `test_health.py`, `test_vanna_chat_endpoint.py`, `test_vanna_tool_access_groups.py`, `test_vanna_memory_tools.py`, `test_vanna_audit_redaction.py`, `test_rate_limiting.py`
+- `tests/test_api_query.py`, `test_bootstrap_startup.py`, `test_health.py`, `test_vanna_chat_endpoint.py`, `test_vanna_tool_access_groups.py`, `test_vanna_memory_tools.py`, `test_vanna_audit_redaction.py`, `test_rate_limiting.py`, `test_cleanup_contract.py`, `test_vanna_file_storage.py`, `test_no_legacy_runtime.py`, `test_vanna_routes_guarded.py`, `test_run_sql_tool_contract.py`
 
 ## Test status
 
 - `uv run ruff check .` — clean.
-- `uv run pytest` — **404 passed**.
+- `uv run pytest` — **424 passed**.
 - `scripts/validate_profile.py --profile dbnwind`, `scripts/benchmark_questions.py --profile dbnwind --source both --fail-on-error`, `scripts/seed_memory.py --profile dbnwind --force` — OK in verification.
 
 ## Remaining gaps (explicit)

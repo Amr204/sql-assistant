@@ -34,7 +34,7 @@ Public re-exports also appear on `vanna.core` (`from vanna.core import Agent, To
 | SQL runner ABC | `from vanna.capabilities.sql_runner import SqlRunner` — `vanna.capabilities.sql_runner.base` |
 | Run SQL args model | `from vanna.capabilities.sql_runner import RunSqlToolArgs` — `vanna.capabilities.sql_runner.models` |
 
-This app injects a custom `SqlRunner` (`PolicySqlRunner`) that applies local SQL/PII policy **before** any database call, then exposes it through **two** `RunSqlTool` registrations: primary **`run_sql`** and optional alias **`secure_run_sql`** (same runner, same `access_groups`).
+This app injects a custom `SqlRunner` (`PolicySqlRunner`) that applies local SQL/PII policy **before** any database call, then exposes it through **two** `RunSqlTool` registrations: primary **`run_sql`** and optional alias **`secure_run_sql`** (same runner, same `access_groups`). Both tools receive a **`LocalFileSystem`** whose ``working_directory`` is ``Settings.vanna_file_storage_dir`` (default ``.data/vanna_files``) so Vanna’s ``query_results_*.csv`` files never land in the project root.
 
 ---
 
