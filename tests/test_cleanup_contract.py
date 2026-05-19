@@ -16,21 +16,23 @@ def test_gitignore_excludes_runtime_and_secrets() -> None:
     assert ".pytest_cache/" in text
     assert ".ruff_cache/" in text
     assert "__pycache__/" in text or "__pycache__" in text
-    assert "query_results_*.csv" in text
+    assert "web/dist" in text or "web/dist/" in text
+    assert "node_modules" in text or "node_modules/" in text
 
 
 def test_no_manual_orchestration_in_chat_source() -> None:
-    chat_file = REPO_ROOT / "src" / "vai_agent" / "api" / "chat.py"
+    chat_file = REPO_ROOT / "src" / "vai_agent" / "api" / "v1" / "chat.py"
     src = chat_file.read_text(encoding="utf-8")
     assert "llm_service.send_request" not in src
     assert "tool_registry.execute" not in src
 
 
-def test_bootstrap_uses_guarded_handler_for_vanna_routes() -> None:
+def test_bootstrap_official_ui_and_vanna_stock_routes_removed() -> None:
     bootstrap = (REPO_ROOT / "src" / "vai_agent" / "bootstrap.py").read_text(encoding="utf-8")
-    assert "GuardedChatHandler" in bootstrap
-    assert "register_chat_routes" in bootstrap
-    assert "ChatHandler(runtime.vanna)" not in bootstrap
+    assert "register_chat_routes" not in bootstrap
+    assert "vanna_fastapi_routes" not in bootstrap
+    assert "api_v1_router" in bootstrap
+    assert "register_web_routes" in bootstrap
 
 
 @pytest.mark.skipif(

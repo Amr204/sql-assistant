@@ -15,7 +15,13 @@ from vai_agent.db.connection import ConnectionSettings
 # ---------------------------------------------------------------------------
 
 def _minimal(**overrides: object) -> ConnectionSettings:
-    kwargs: dict[str, object] = dict(host="host", database="db", username="user", password="pass")
+    kwargs: dict[str, object] = dict(
+        host="host",
+        database="db",
+        username="user",
+        password="pass",
+        _env_file=None,
+    )
     kwargs.update(overrides)
     return ConnectionSettings(**kwargs)  # type: ignore[arg-type]
 

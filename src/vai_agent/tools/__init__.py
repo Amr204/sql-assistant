@@ -10,12 +10,10 @@ with ``success=False`` and a sanitised ``error`` string.
 from vai_agent.tools.base import ToolBase, ToolResult
 from vai_agent.tools.explain_schema_tool import ExplainSchemaTool
 from vai_agent.tools.profile_search_tool import ProfileSearchTool
-from vai_agent.tools.secure_run_sql_tool import SecureRunSqlTool
 
 __all__ = [
     "ExplainSchemaTool",
     "ProfileSearchTool",
-    "SecureRunSqlTool",
     "ToolBase",
     "ToolResult",
 ]

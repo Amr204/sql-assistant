@@ -104,7 +104,7 @@ def enforce_min_group_size(
         counts = [
             int(value)
             for key, value in row.items()
-            if str(key).lower() in count_keys and isinstance(value, int)
+            if str(key).lower() in count_keys and isinstance(value, (int, float))
         ]
         if counts and any(c < min_group_size for c in counts):
             continue

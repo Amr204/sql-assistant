@@ -109,6 +109,11 @@ class TestMultipleStatements:
         assert r.allowed
         assert "POL002" not in _codes(r)
 
+    def test_semicolon_inside_string_literal_is_allowed(self) -> None:
+        r = _ok("SELECT 'hello; world' AS msg FROM dbo.Customers")
+        assert r.allowed
+        assert "POL002" not in _codes(r)
+
 
 # ---------------------------------------------------------------------------
 # POL003 — SELECT *

@@ -14,7 +14,7 @@ What this module does NOT do
 ----------------------------
 * It does not parse general SQL — only the SSMS DDL subset above.
 * It does not extract CHECK constraints (Phase 2's ``Table`` model
-  has no place for them; revisit if/when ``SecureRunSqlTool`` needs
+  has no place for them; revisit if/when the SQL execution layer needs
   them).
 * It does not extract view / stored-procedure *bodies* semantically;
   it stores them as raw definition text in ``View.definition`` /
@@ -412,7 +412,7 @@ def parse_schema_sql(text: str) -> ExtractionResult:
     :class:`Relationship` objects ready for ``relationships.yaml``.
     """
 
-    tables_by_name: dict[str, Table] = {}
+    tables_by_key: dict[str, Table] = {}
     views: list[View] = []
     procedures: list[StoredProcedure] = []
     fks: list[_ParsedFK] = []
@@ -433,7 +433,7 @@ def parse_schema_sql(text: str) -> ExtractionResult:
             views.append(view)
             continue
         if (table := _parse_create_table(batch)) is not None:
-            tables_by_name[table.name] = table
+            tables_by_key[f"{table.schema_name}.{table.name}"] = table
             continue
         if (parsed_idx := _parse_index(batch)) is not None:
             indexes.append(parsed_idx)
@@ -445,9 +445,20 @@ def parse_schema_sql(text: str) -> ExtractionResult:
             defaults.append(parsed_def)
             continue
 
+    def _resolve_table(name: str) -> Table | None:
+        if name in tables_by_key:
+            return tables_by_key[name]
+        matches = [
+            t for key, t in tables_by_key.items()
+            if t.name == name or key.endswith(f".{name}")
+        ]
+        if len(matches) == 1:
+            return matches[0]
+        return None
+
     # Attach FKs / indexes / defaults to their owning tables.
     for parsed_fk in fks:
-        table = tables_by_name.get(parsed_fk.source_table)
+        table = _resolve_table(parsed_fk.source_table)
         if table is None:
             logger.warning(
                 "foreign key %s references unknown source table %s",
@@ -457,14 +468,14 @@ def parse_schema_sql(text: str) -> ExtractionResult:
         table.foreign_keys.append(parsed_fk.fk)
 
     for parsed_idx in indexes:
-        table = tables_by_name.get(parsed_idx.table)
+        table = _resolve_table(parsed_idx.table)
         if table is None:
             logger.warning("index %s on unknown table %s", parsed_idx.index.name, parsed_idx.table)
             continue
         table.indexes.append(parsed_idx.index)
 
     for d in defaults:
-        table = tables_by_name.get(d.table)
+        table = _resolve_table(d.table)
         if table is None:
             continue
         for col in table.columns:
@@ -476,7 +487,7 @@ def parse_schema_sql(text: str) -> ExtractionResult:
 
     return ExtractionResult(
         database_schema=DatabaseSchema(
-            tables=list(tables_by_name.values()),
+            tables=list(tables_by_key.values()),
             views=views,
             stored_procedures=procedures,
         ),

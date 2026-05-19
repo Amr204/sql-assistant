@@ -143,6 +143,21 @@ def _build_lookup(
 # ---------------------------------------------------------------------------
 
 
+def _extract_column_refs_from_statements(
+    statements: list[exp.Expression | None],
+) -> list[tuple[str | None, str]]:
+    """Column refs from an already-parsed statement list."""
+
+    refs: list[tuple[str | None, str]] = []
+    for stmt in statements:
+        if stmt is None:
+            continue
+        for col in stmt.find_all(exp.Column):
+            table_ref: str | None = col.table if col.table else None
+            refs.append((table_ref, col.name))
+    return refs
+
+
 def _extract_column_refs(sql: str) -> list[tuple[str | None, str]]:
     """Return ``(table_or_alias, column_name)`` pairs from the SQL AST.
 
@@ -154,16 +169,23 @@ def _extract_column_refs(sql: str) -> list[tuple[str | None, str]]:
             sql, read="tsql", error_level=sqlglot.errors.ErrorLevel.WARN,
         )
     except Exception:
+        logger.warning("SQL parse failed in PII check — blocking query")
         return []
 
-    refs: list[tuple[str | None, str]] = []
-    for stmt in stmts:
-        if stmt is None:
-            continue
-        for col in stmt.find_all(exp.Column):
-            table_ref: str | None = col.table if col.table else None
-            refs.append((table_ref, col.name))
-    return refs
+    return _extract_column_refs_from_statements(list(stmts))
+
+
+def _parse_failed(sql: str) -> bool:
+    """Return True when SQL cannot be parsed for column extraction."""
+    if not sql.strip():
+        return False
+    try:
+        stmts = sqlglot.parse(
+            sql, read="tsql", error_level=sqlglot.errors.ErrorLevel.WARN,
+        )
+    except Exception:
+        return True
+    return not any(s is not None for s in stmts)
 
 
 # ---------------------------------------------------------------------------
@@ -193,17 +215,33 @@ class PiiPolicyEngine:
         sql: str,
         *,
         user_groups: list[str] | None = None,  # reserved for Phase 5
+        parsed_ast: list[exp.Expression | None] | None = None,
     ) -> PiiCheckResult:
         """Return a :class:`PiiCheckResult` for *sql*.
 
         This method never executes SQL. It is safe to call before the SQL
         policy engine's structural checks, but callers typically run
         :class:`SqlPolicyEngine` first to ensure the SQL is well-formed.
+
+        When *parsed_ast* is provided, column references are taken from it
+        instead of parsing *sql* again.
         """
         violations: list[PiiViolation] = []
         seen_refs: set[str] = set()  # deduplicate identical column refs
 
-        refs = _extract_column_refs(sql)
+        if parsed_ast is not None:
+            stmts = [s for s in parsed_ast if s is not None]
+            refs = _extract_column_refs_from_statements(stmts) if stmts else []
+        else:
+            refs = _extract_column_refs(sql)
+            if not refs and _parse_failed(sql):
+                violations.append(PiiViolation(
+                    code="PII_PARSE",
+                    severity="error",
+                    column_ref="*",
+                    message="SQL could not be parsed for PII checks; query blocked.",
+                ))
+                return PiiCheckResult(allowed=False, violations=violations)
         for table_ref, col_name in refs:
             ref_key = f"{table_ref}.{col_name}".lower() if table_ref else col_name.lower()
             if ref_key in seen_refs:

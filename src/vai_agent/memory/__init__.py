@@ -14,12 +14,12 @@ Phase 7 deliverables:
 """
 
 from vai_agent.memory.chunking import ProfileChunk, chunk_profile
-from vai_agent.memory.memory_factory import AgentMemory, MemoryError, create_memory
+from vai_agent.memory.memory_factory import AgentMemory, AgentMemoryError, create_memory
 from vai_agent.memory.seed_memory import seed_profile_memory
 
 __all__ = [
     "AgentMemory",
-    "MemoryError",
+    "AgentMemoryError",
     "ProfileChunk",
     "chunk_profile",
     "create_memory",

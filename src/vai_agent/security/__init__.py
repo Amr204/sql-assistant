@@ -1,7 +1,7 @@
 """Security layer: SQL policy validation and PII column protection.
 
 Phase 4 deliverables. No SQL is executed here; these modules are pure
-validators that the execution layer (``SecureRunSqlTool``, Phase 5+)
+validators that the execution layer (policy-gated SQL runners)
 will call before touching the database.
 
 Usage example::

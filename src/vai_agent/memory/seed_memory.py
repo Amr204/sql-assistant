@@ -13,8 +13,9 @@ from pathlib import Path
 
 from chromadb.api.types import EmbeddingFunction
 
+from vai_agent.config.settings import get_settings
 from vai_agent.knowledge import ProfileLoader
-from vai_agent.memory.chunking import chunk_profile
+from vai_agent.memory.chunking import ChunkingStrategy, chunk_profile
 from vai_agent.memory.memory_factory import create_memory
 
 logger = logging.getLogger(__name__)
@@ -52,7 +53,11 @@ def seed_profile_memory(
     """
     loader = ProfileLoader(profiles_root)
     profile = loader.load(profile_id)
-    chunks = chunk_profile(profile)
+    try:
+        strategy = ChunkingStrategy(get_settings().chunking_strategy)
+    except ValueError:
+        strategy = ChunkingStrategy.EARLY
+    chunks = chunk_profile(profile, strategy=strategy)
 
     memory, client = create_memory(
         profile_id=profile_id,

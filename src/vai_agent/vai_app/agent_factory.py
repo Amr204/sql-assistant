@@ -14,14 +14,9 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
-from vai_agent.db.connection import ConnectionSettings
-from vai_agent.db.mssql_runner import MssqlRunner
-from vai_agent.security.pii_policy import PiiPolicyEngine
-from vai_agent.security.sql_policy import SqlPolicyEngine
 from vai_agent.tools import (
     ExplainSchemaTool,
     ProfileSearchTool,
-    SecureRunSqlTool,
     ToolResult,
 )
 from vai_agent.users import UserResolver
@@ -139,40 +134,16 @@ class Agent:
 def build_agent(
     *,
     profile: Profile,
-    connection_settings: ConnectionSettings,
     user_resolver: UserResolver,
-    max_rows: int | None = None,
-    query_timeout: int | None = None,
 ) -> Agent:
-    """Wire together the Phase-6 agent stack.
+    """Wire the legacy tool registry (schema + profile search only).
 
-    Parameters
-    ----------
-    profile:
-        Loaded :class:`Profile`. Supplies the security policy used by
-        both engines and the schema/knowledge for the explainer + search
-        tools.
-    connection_settings:
-        Database connection details for :class:`MssqlRunner`.
-    user_resolver:
-        Pre-built resolver. The factory does not assume a particular
-        mode so tests and the FastAPI layer can inject the right one.
-    max_rows / query_timeout:
-        Optional overrides; otherwise taken from
-        ``profile.security_policy``.
+    SQL execution is handled by the Vanna stack
+    (:mod:`vai_agent.vanna_integration.factory`); this factory remains for
+    unit tests and thin HTTP tool probes.
     """
-    security_policy = profile.security_policy
-    sql_engine = SqlPolicyEngine(security_policy)
-    pii_engine = PiiPolicyEngine(security_policy)
-    runner = MssqlRunner(
-        connection_settings,
-        max_rows=max_rows or security_policy.max_rows,
-        query_timeout=query_timeout or security_policy.max_execution_seconds,
-    )
-
     registry = ToolRegistry()
     registry.register_all([
-        SecureRunSqlTool(sql_engine, pii_engine, runner),
         ExplainSchemaTool(profile),
         ProfileSearchTool(profile),
     ])

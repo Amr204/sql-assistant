@@ -11,3 +11,10 @@ language_settings:
   secondary: en
 created_at: '2026-05-16T13:42:48.973025Z'
 generated_from: data\input\Schema.sql
+
+# Northwind database - نموذجي لتجارة التجزئة
+# الجداول الرئيسية: Customers, Orders, Order Details, Products
+# العلاقة الأساسية: Customer → Orders → Order Details ← Products
+# معادلة الإيرادات: UnitPrice * Quantity * (1 - Discount)
+description_ar: "قاعدة بيانات Northwind لتجارة التجزئة - عملاء، طلبات، منتجات، موظفين، موردين، شحن"
+description_en: "Northwind retail database - customers, orders, products, employees, suppliers, shipping"

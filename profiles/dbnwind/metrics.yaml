@@ -1,47 +1,151 @@
 metrics:
-  - id: metric_total_orders
-    name_ar: إجمالي الطلبات
-    name_en: Total Orders
-    description: Total number of orders.
-    sql_expression: COUNT(Orders.OrderID)
-    required_tables:
-      - Orders
-    filters: []
-    caveats: []
-    confidence: medium
-
-  - id: metric_total_freight
-    name_ar: إجمالي الشحن
-    name_en: Total Freight
-    description: Sum of freight values on orders.
-    sql_expression: SUM(Orders.Freight)
-    required_tables:
-      - Orders
-    filters:
-      - Date range on Orders.OrderDate
-    caveats:
-      - Freight may be NULL for some records.
-    confidence: medium
-
-  - id: metric_order_line_revenue
-    name_ar: قيمة بنود الطلبات
-    name_en: Order Line Revenue
-    description: Sum of line values from Order Details.
-    sql_expression: SUM([Order Details].UnitPrice * [Order Details].Quantity * (1 - [Order Details].Discount))
+  # ─── Revenue Metrics ─────────────────────────────────────────────
+  - id: metric_total_revenue
+    name_ar: إجمالي الإيرادات
+    name_en: Total Revenue
+    description: "مجموع إيرادات جميع بنود الطلبات. الصيغة: SUM(UnitPrice * Quantity * (1 - Discount))"
+    sql_expression: SUM(od.UnitPrice * od.Quantity * (1 - od.Discount))
     required_tables:
       - "Order Details"
     filters: []
     caveats:
-      - Discount is a fractional value.
-    confidence: medium
+      - "Discount قيمة كسرية بين 0 و 1، وليست نسبة مئوية"
+    confidence: high
 
+  - id: metric_avg_order_value
+    name_ar: متوسط قيمة الطلب
+    name_en: Average Order Value
+    description: "متوسط إجمالي كل طلب. يحسب كمتوسط مجموع بنود كل طلب"
+    sql_expression: "AVG(order_total) -- requires subquery: SELECT AVG(SUM(od.UnitPrice * od.Quantity * (1 - od.Discount))) FROM [Order Details] od GROUP BY OrderID"
+    required_tables:
+      - "Order Details"
+    filters: []
+    caveats:
+      - "يتطلب subquery لأن AVG تُحسب على مستوى الطلب وليس البند"
+    confidence: high
+
+  - id: metric_total_freight
+    name_ar: إجمالي الشحن
+    name_en: Total Freight
+    description: "مجموع تكاليف الشحن لجميع الطلبات"
+    sql_expression: SUM(Orders.Freight)
+    required_tables:
+      - Orders
+    filters:
+      - "تأكد من استبعاد NULL: WHERE Freight IS NOT NULL"
+    caveats:
+      - "Freight يمكن أن تكون NULL لبعض الطلبات"
+    confidence: high
+
+  # ─── Customer Metrics ───────────────────────────────────────────
+  - id: metric_customer_lifetime_value
+    name_ar: القيمة الدائمة للعميل
+    name_en: Customer Lifetime Value
+    description: "إجمالي إنفاق العميل على مدار كل الطلبات"
+    sql_expression: "SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)) per customer"
+    required_tables:
+      - Customers
+      - Orders
+      - "Order Details"
+    filters: []
+    caveats: []
+    confidence: high
+
+  - id: metric_customer_order_count
+    name_ar: عدد طلبات العميل
+    name_en: Customer Order Count
+    description: "عدد الطلبات التي قدمها كل عميل"
+    sql_expression: COUNT(o.OrderID)
+    required_tables:
+      - Customers
+      - Orders
+    filters: []
+    caveats: []
+    confidence: high
+
+  # ─── Product Metrics ────────────────────────────────────────────
+  - id: metric_product_revenue
+    name_ar: إيرادات المنتج
+    name_en: Product Revenue
+    description: "إجمالي الإيرادات من مبيعات منتج معين"
+    sql_expression: "SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)) per product"
+    required_tables:
+      - Products
+      - "Order Details"
+    filters: []
+    caveats: []
+    confidence: high
+
+  - id: metric_product_units_sold
+    name_ar: وحدات المنتج المباعة
+    name_en: Product Units Sold
+    description: "إجمالي الكمية المباعة من كل منتج"
+    sql_expression: SUM(od.Quantity)
+    required_tables:
+      - "Order Details"
+    filters: []
+    caveats: []
+    confidence: high
+
+  # ─── Category Metrics ───────────────────────────────────────────
+  - id: metric_category_revenue
+    name_ar: إيرادات الفئة
+    name_en: Category Revenue
+    description: "إجمالي الإيرادات من منتجات فئة معينة"
+    sql_expression: "SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)) per category"
+    required_tables:
+      - Categories
+      - Products
+      - "Order Details"
+    filters: []
+    caveats: []
+    confidence: high
+
+  # ─── Employee Metrics ───────────────────────────────────────────
+  - id: metric_employee_sales
+    name_ar: مبيعات الموظف
+    name_en: Employee Sales
+    description: "إجمالي مبيعات الموظف من الطلبات التي عالجها"
+    sql_expression: "SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)) per employee"
+    required_tables:
+      - Employees
+      - Orders
+      - "Order Details"
+    filters: []
+    caveats: []
+    confidence: high
+
+  - id: metric_employee_order_count
+    name_ar: عدد طلبات الموظف
+    name_en: Employee Order Count
+    description: "عدد الطلبات التي عالجها كل موظف"
+    sql_expression: COUNT(o.OrderID)
+    required_tables:
+      - Employees
+      - Orders
+    filters: []
+    caveats: []
+    confidence: high
+
+  # ─── Inventory Metrics ──────────────────────────────────────────
   - id: metric_active_products
-    name_ar: المنتجات المتوفرة
+    name_ar: المنتجات النشطة
     name_en: Active Products
-    description: Number of products with UnitsInStock > 0.
-    sql_expression: SUM(CASE WHEN Products.UnitsInStock > 0 THEN 1 ELSE 0 END)
+    description: "عدد المنتجات النشطة (Discontinued = 0)"
+    sql_expression: "SUM(CASE WHEN Products.Discontinued = 0 THEN 1 ELSE 0 END)"
     required_tables:
       - Products
     filters: []
     caveats: []
-    confidence: low
+    confidence: high
+
+  - id: metric_out_of_stock
+    name_ar: المنتجات النافدة
+    name_en: Out of Stock Products
+    description: "عدد المنتجات النشطة التي نفد مخزونها"
+    sql_expression: "SUM(CASE WHEN Products.UnitsInStock = 0 AND Products.Discontinued = 0 THEN 1 ELSE 0 END)"
+    required_tables:
+      - Products
+    filters: []
+    caveats: []
+    confidence: high

@@ -200,6 +200,15 @@ _DANGEROUS_FUNC_RE = re.compile(
 _MID_SEMICOLON_RE = re.compile(r";(?!\s*$)")
 
 
+def _has_multiple_statements(sql: str) -> bool:
+    """Detect multiple statements via AST; fall back to semicolon regex."""
+    try:
+        stmts = sqlglot.parse(sql, read="tsql", error_level=sqlglot.errors.ErrorLevel.WARN)
+        return len([s for s in stmts if s is not None]) > 1
+    except Exception:
+        return bool(_MID_SEMICOLON_RE.search(sql))
+
+
 # ---------------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------------
@@ -321,11 +330,15 @@ class SqlPolicyEngine:
         sql: str,
         *,
         user_groups: list[str] | None = None,  # reserved for Phase 5 access-group checks
+        parsed_ast: list[exp.Expression | None] | None = None,
     ) -> SqlPolicyResult:
         """Validate *sql* and return a :class:`SqlPolicyResult`.
 
         This method **never executes SQL**. All violations are collected
         before returning so the caller sees the full picture.
+
+        When *parsed_ast* is provided (from a single shared ``sqlglot`` parse),
+        it is used instead of parsing *sql* again.
         """
         violations: list[PolicyViolation] = []
 
@@ -356,7 +369,7 @@ class SqlPolicyEngine:
         # ------------------------------------------------------------------ #
         # 3. Multiple statements — fast semicolon check                       #
         # ------------------------------------------------------------------ #
-        if _MID_SEMICOLON_RE.search(sql_stripped):
+        if _has_multiple_statements(sql_stripped):
             violations.append(PolicyViolation(
                 code="POL002",
                 severity="error",
@@ -396,34 +409,46 @@ class SqlPolicyEngine:
         # ------------------------------------------------------------------ #
         # 6. Parse with sqlglot (T-SQL dialect)                               #
         # ------------------------------------------------------------------ #
-        try:
-            statements = sqlglot.parse(
-                sql_stripped,
-                read="tsql",
-                error_level=sqlglot.errors.ErrorLevel.WARN,
-            )
-        except Exception:
-            logger.debug("sqlglot parse error for query (blocked)", exc_info=False)
-            return SqlPolicyResult(
-                allowed=False,
-                violations=[PolicyViolation(
-                    code="POL009",
-                    severity="error",
-                    message="Query could not be parsed. Check syntax.",
-                )],
-            )
+        if parsed_ast is not None:
+            statements = [s for s in parsed_ast if s is not None]
+            if not statements:
+                return SqlPolicyResult(
+                    allowed=False,
+                    violations=[PolicyViolation(
+                        code="POL009",
+                        severity="error",
+                        message="No valid SQL statement found.",
+                    )],
+                )
+        else:
+            try:
+                statements = sqlglot.parse(
+                    sql_stripped,
+                    read="tsql",
+                    error_level=sqlglot.errors.ErrorLevel.WARN,
+                )
+            except Exception:
+                logger.debug("sqlglot parse error for query (blocked)", exc_info=False)
+                return SqlPolicyResult(
+                    allowed=False,
+                    violations=[PolicyViolation(
+                        code="POL009",
+                        severity="error",
+                        message="Query could not be parsed. Check syntax.",
+                    )],
+                )
 
-        statements = [s for s in statements if s is not None]
+            statements = [s for s in statements if s is not None]
 
-        if not statements:
-            return SqlPolicyResult(
-                allowed=False,
-                violations=[PolicyViolation(
-                    code="POL009",
-                    severity="error",
-                    message="No valid SQL statement found.",
-                )],
-            )
+            if not statements:
+                return SqlPolicyResult(
+                    allowed=False,
+                    violations=[PolicyViolation(
+                        code="POL009",
+                        severity="error",
+                        message="No valid SQL statement found.",
+                    )],
+                )
 
         # ------------------------------------------------------------------ #
         # 7. Multiple statements in AST                                        #

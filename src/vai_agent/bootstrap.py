@@ -11,20 +11,39 @@ from pathlib import Path
 
 import chromadb
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from vai_agent import __version__
-from vai_agent.api.chat import router as chat_router
 from vai_agent.api.health import router as health_router
 from vai_agent.api.query import router as agent_router
+from vai_agent.api.v1 import router as api_v1_router
 from vai_agent.config.logging_config import configure_logging
 from vai_agent.config.settings import Settings, get_settings
 from vai_agent.db.connection import get_connection_settings
 from vai_agent.knowledge import ProfileLoader
 from vai_agent.memory import create_memory
+from vai_agent.memory.chunking import ChunkingStrategy, chunk_profile
+from vai_agent.memory.memory_factory import build_embedding_function
 from vai_agent.vanna_integration.factory import build_vanna_runtime
-from vai_agent.vanna_integration.runtime import VaiVannaRuntime
+from vai_agent.web.serving import register_web_routes
 
 logger = logging.getLogger(__name__)
+
+
+def setup_cors(app: FastAPI, settings: Settings) -> None:
+    if not settings.is_dev:
+        return
+    origins = [
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+    ]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+    )
 
 
 def _initialise_runtime(app: FastAPI, settings: Settings) -> None:
@@ -62,14 +81,30 @@ def _initialise_runtime(app: FastAPI, settings: Settings) -> None:
             return
 
     chroma_client: chromadb.api.ClientAPI | None = None
+    embedding_fn = build_embedding_function(embedding_device=settings.embedding_device)
     try:
         memory, chroma_client = create_memory(
             profile_id=settings.db_profile_id,
             persist_dir=settings.chroma_persist_dir,
+            embedding_function=embedding_fn,
+            embedding_device=settings.embedding_device,
         )
         app.state.memory = memory
         app.state.memory_client = chroma_client
         app.state.readiness["memory_ready"] = True
+        if settings.warmup_on_startup:
+            try:
+                memory.search("__warmup__", n_results=1)
+                logger.info("embedding model warmed up successfully")
+            except Exception as exc:
+                logger.warning("embedding warmup failed (non-fatal)", extra={"error": str(exc)})
+        if memory.count() == 0 and app.state.profile is not None:
+            try:
+                strategy = ChunkingStrategy(settings.chunking_strategy)
+            except ValueError:
+                strategy = ChunkingStrategy.EARLY
+            memory.seed(chunk_profile(app.state.profile, strategy=strategy))
+            logger.info("auto-seeded memory for profile %s", settings.db_profile_id)
     except Exception as exc:
         app.state.readiness["errors"].append(f"memory init failed: {exc}")
         try:
@@ -81,7 +116,8 @@ def _initialise_runtime(app: FastAPI, settings: Settings) -> None:
             app.state.readiness["errors"].append(f"chroma client fallback failed: {client_exc}")
             return
 
-    assert chroma_client is not None
+    if chroma_client is None:
+        raise RuntimeError("ChromaDB client initialization failed — cannot proceed")
 
     try:
         connection_settings = get_connection_settings()
@@ -90,6 +126,8 @@ def _initialise_runtime(app: FastAPI, settings: Settings) -> None:
             connection_settings=connection_settings,
             settings=settings,
             chunk_memory=app.state.memory,
+            chroma_client=chroma_client,
+            vanna_embedding_function=embedding_fn,
         )
         app.state.agent = runtime
         app.state.readiness["agent_ready"] = True
@@ -123,25 +161,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         redoc_url="/redoc" if not settings.is_prod else None,
     )
 
+    setup_cors(app, settings)
+
     app.include_router(health_router)
     app.include_router(agent_router)
-    app.include_router(chat_router)
+    app.include_router(api_v1_router)
+
+    register_web_routes(app, web_dist_dir="web/dist")
 
     _initialise_runtime(app, settings)
-
-    runtime = getattr(app.state, "agent", None)
-    if isinstance(runtime, VaiVannaRuntime):
-        from vai_agent.vanna_integration.guarded_chat import GuardedChatHandler
-        from vai_agent.vanna_integration.vanna_fastapi_routes import register_chat_routes
-
-        register_chat_routes(
-            app,
-            GuardedChatHandler(runtime.vanna, settings),
-            config={
-                "dev_mode": settings.is_dev,
-                "api_base_url": "",
-            },
-        )
 
     logger.info(
         "application initialised",

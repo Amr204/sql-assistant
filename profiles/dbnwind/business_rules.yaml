@@ -2,30 +2,150 @@ status_meanings:
   - table: Orders
     column: ShipVia
     values:
-      "1": "Shipped with Speedy Express"
-      "2": "Shipped with United Package"
-      "3": "Shipped with Federal Shipping"
+      "1": "Speedy Express"
+      "2": "United Package"
+      "3": "Federal Shipping"
+  - table: Products
+    column: Discontinued
+    values:
+      "0": "منتج نشط/متوفر للبيع"
+      "1": "منتج متوقف/لا يباع"
 
 type_meanings: []
 
 rules:
-  - id: br_orders_shipped_definition
-    description: An order is considered shipped when ShippedDate IS NOT NULL.
-    confidence: medium
-    needs_review: true
-    tables:
-      - Orders
-
-  - id: br_orderdetails_line_amount
-    description: Order line value equals UnitPrice * Quantity * (1 - Discount).
-    confidence: medium
-    needs_review: true
+  # ─── Revenue Calculation Rules ──────────────────────────────────
+  - id: br_revenue_formula
+    description: |
+      إيرادات البند الواحد = UnitPrice × Quantity × (1 − Discount).
+      Discount هو رقم حقيقي بين 0.0 و 1.0 (ليس نسبة مئوية).
+      مثال: Discount = 0.15 يعني خصم 15%.
+      الصيغة الصحيحة دائماً: SUM(od.UnitPrice * od.Quantity * (1 - od.Discount))
+    confidence: high
+    needs_review: false
     tables:
       - "Order Details"
 
-  - id: br_products_in_stock
-    description: A product is in stock when UnitsInStock > 0.
-    confidence: low
-    needs_review: true
+  - id: br_order_total
+    description: |
+      إجمالي الطلب = مجموع إيرادات جميع بنوده.
+      أي: SELECT SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)) FROM [Order Details] od WHERE od.OrderID = @OrderID
+      ملاحظة: Orders.Freight هي تكلفة الشحن ولا تُضاف لحساب إيرادات البنود.
+    confidence: high
+    needs_review: false
+    tables:
+      - Orders
+      - "Order Details"
+
+  # ─── Order Lifecycle Rules ──────────────────────────────────────
+  - id: br_order_lifecycle
+    description: |
+      دورة حياة الطلب:
+      1. OrderDate — تاريخ إنشاء الطلب (دائماً موجود)
+      2. RequiredDate — التاريخ المطلوب التسليم فيه
+      3. ShippedDate — تاريخ الشحن الفعلي
+      طلب غير مشحون = ShippedDate IS NULL
+      طلب مشحون = ShippedDate IS NOT NULL
+      تأخير = ShippedDate > RequiredDate
+    confidence: high
+    needs_review: false
+    tables:
+      - Orders
+
+  - id: br_shipvia_mapping
+    description: |
+      Orders.ShipVia يشير لـ Shippers.ShipperID:
+      1 = Speedy Express
+      2 = United Package
+      3 = Federal Shipping
+      JOIN: Orders.ShipVia = Shippers.ShipperID
+    confidence: high
+    needs_review: false
+    tables:
+      - Orders
+      - Shippers
+
+  # ─── Product Rules ──────────────────────────────────────────────
+  - id: br_product_availability
+    description: |
+      المنتج متوفر للبيع = Discontinued = 0
+      المنتج متوفر في المخزون = UnitsInStock > 0
+      المنتج يحتاج إعادة طلب = UnitsInStock <= ReorderLevel AND Discontinued = 0
+      دائماً صفِّ بـ WHERE Discontinued = 0 عند عرض المنتجات النشطة
+    confidence: high
+    needs_review: false
     tables:
       - Products
+
+  - id: br_unit_price_context
+    description: |
+      Products.UnitPrice هو السعر الحالي للمنتج.
+      [Order Details].UnitPrice هو السعر وقت الطلب (قد يختلف عن السعر الحالي).
+      لحساب الإيرادات استخدم [Order Details].UnitPrice وليس Products.UnitPrice.
+    confidence: high
+    needs_review: false
+    tables:
+      - Products
+      - "Order Details"
+
+  # ─── Employee Rules ─────────────────────────────────────────────
+  - id: br_employee_full_name
+    description: |
+      الاسم الكامل للموظف = FirstName + ' ' + LastName
+      مثال: SELECT e.FirstName + ' ' + e.LastName AS EmployeeName
+    confidence: high
+    needs_review: false
+    tables:
+      - Employees
+
+  - id: br_employee_hierarchy
+    description: |
+      Employees.ReportsTo يشير لـ Employees.EmployeeID (Self-reference).
+      الموظف بدون مدير = ReportsTo IS NULL (الإدارة العليا).
+      لمعرفة المدير: SELECT m.FirstName + ' ' + m.LastName AS ManagerName
+      FROM Employees e INNER JOIN Employees m ON e.ReportsTo = m.EmployeeID
+    confidence: high
+    needs_review: false
+    tables:
+      - Employees
+
+  # ─── Date Handling Rules ────────────────────────────────────────
+  - id: br_date_range_filtering
+    description: |
+      عند تصفية التواريخ، استخدم نطاق بدلاً من YEAR():
+      WHERE OrderDate >= '19970101' AND OrderDate < '19980101'
+      بدلاً من: WHERE YEAR(OrderDate) = 1997
+      النطاق أفضل للأداء لأنه يستخدم الفهرس.
+    confidence: high
+    needs_review: false
+    tables:
+      - Orders
+
+  # ─── T-SQL Specific Rules ──────────────────────────────────────
+  - id: br_top_not_limit
+    description: |
+      في SQL Server استخدم TOP N بدلاً من LIMIT:
+      SELECT TOP 10 ... ORDER BY ... DESC
+      لا تستخدم LIMIT لأنها غير مدعومة في T-SQL.
+    confidence: high
+    needs_review: false
+    tables: []
+
+  - id: br_unicode_strings
+    description: |
+      عند تصفية النصوص العربية أو غير الإنجليزية استخدم N'...':
+      WHERE Country = N'Germany'
+      WHERE CompanyName LIKE N'%مطار%'
+    confidence: high
+    needs_review: false
+    tables: []
+
+  - id: br_order_details_table_name
+    description: |
+      اسم الجدول يحتوي مسافة: "Order Details"
+      يجب استخدام أقواس مربعة: dbo.[Order Details]
+      أو alias: FROM dbo.[Order Details] AS od
+    confidence: high
+    needs_review: false
+    tables:
+      - "Order Details"

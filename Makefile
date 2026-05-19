@@ -14,7 +14,10 @@ APP_MODULE  := vai_agent.main:app
 HOST        ?= 127.0.0.1
 PORT        ?= 8000
 
-.PHONY: help venv install lint format test run check clean
+# Narrow reload scope so logs/audit/artifacts do not trigger restart loops.
+RELOAD_FLAGS := --reload --reload-dir src --reload-dir profiles --reload-exclude "logs/*" --reload-exclude "audit/*" --reload-exclude "activity_audit/*" --reload-exclude ".data/*" --reload-exclude "web/dist/*" --reload-exclude "*.xlsx" --reload-exclude "*.csv" --reload-exclude "*.jsonl"
+
+.PHONY: help venv install lint format test run check clean web-install web-dev web-build web-preview run-api run-full
 
 help:
 	@echo "Available targets:"
@@ -26,6 +29,29 @@ help:
 	@echo "  run      Start the FastAPI app with uvicorn --reload"
 	@echo "  check    Run lint + tests (CI-equivalent)"
 	@echo "  clean    Remove caches and build artefacts"
+	@echo "  web-install / web-dev / web-build / web-preview — Vite UI under web/"
+	@echo "  run-api  Uvicorn API (uses .env if present)"
+	@echo "  run-full Reminder to run API + web dev in two terminals"
+
+web-install:
+	cd web && npm install
+
+web-dev:
+	cd web && npm run dev
+
+web-build:
+	cd web && npm run build
+
+web-preview:
+	cd web && npm run preview
+
+run-api:
+	$(UVICORN) $(APP_MODULE) --env-file .env --host 127.0.0.1 --port 8000 $(RELOAD_FLAGS)
+
+run-full:
+	@echo "Run API and web dev in separate terminals:"
+	@echo "make run-api"
+	@echo "make web-dev"
 
 venv:
 	python -m venv .venv
@@ -44,7 +70,7 @@ test:
 	$(PYTEST)
 
 run:
-	$(UVICORN) $(APP_MODULE) --host $(HOST) --port $(PORT) --reload
+	$(UVICORN) $(APP_MODULE) --env-file .env --host $(HOST) --port $(PORT) $(RELOAD_FLAGS)
 
 check: lint test
 

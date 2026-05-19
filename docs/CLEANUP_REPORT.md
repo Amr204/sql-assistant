@@ -17,7 +17,7 @@
 ## Legacy code
 
 - **`vai_app/`** (sync `Agent`, `ToolRegistry`, **`ContextEnhancer`**) remains **imported** by **`vanna_integration/factory.py`** and **unit tests**; it is **not** the HTTP runtime path. **`agent_factory.py`** already documents test-only use.
-- **`vai_agent/tools/base.py`** and **`llm/`** remain in use (profile tools, OpenRouter client tests).
+- **`vai_agent/tools/base.py`** and **`llm/`** remain in use (profile tools, OpenAI-compatible client tests).
 
 ## Tests added
 

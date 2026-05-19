@@ -1,0 +1,451 @@
+{
+  "profile_id": "dbnwind",
+  "source": "eval_questions",
+  "generated_at": "2026-05-16T21:18:04.031512+00:00",
+  "summary": {
+    "total": 30,
+    "passed": 30,
+    "failed": 0,
+    "warnings": 0
+  },
+  "results": [
+    {
+      "id": "eval_001",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "How many rows are in Customers?",
+      "question_ar": "كم عدد السجلات في جدول Customers؟"
+    },
+    {
+      "id": "eval_002",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "How many rows are in Suppliers?",
+      "question_ar": "كم عدد السجلات في جدول Suppliers؟"
+    },
+    {
+      "id": "eval_003",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "How many rows are in Categories?",
+      "question_ar": "كم عدد السجلات في جدول Categories؟"
+    },
+    {
+      "id": "eval_004",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "How many rows are in Products?",
+      "question_ar": "كم عدد السجلات في جدول Products؟"
+    },
+    {
+      "id": "eval_005",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "How many rows are in Orders?",
+      "question_ar": "كم عدد السجلات في جدول Orders؟"
+    },
+    {
+      "id": "eval_006",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "How many rows are in Employees?",
+      "question_ar": "كم عدد السجلات في جدول Employees؟"
+    },
+    {
+      "id": "eval_007",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "How many rows are in Shippers?",
+      "question_ar": "كم عدد السجلات في جدول Shippers؟"
+    },
+    {
+      "id": "eval_008",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "How many rows are in Order Details?",
+      "question_ar": "كم عدد السجلات في جدول Order Details؟"
+    },
+    {
+      "id": "eval_009",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "How many rows are in CustomerCustomerDemo?",
+      "question_ar": "كم عدد السجلات في جدول CustomerCustomerDemo؟"
+    },
+    {
+      "id": "eval_010",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "How many rows are in CustomerDemographics?",
+      "question_ar": "كم عدد السجلات في جدول CustomerDemographics؟"
+    },
+    {
+      "id": "eval_011",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "How many rows are in EmployeeTerritories?",
+      "question_ar": "كم عدد السجلات في جدول EmployeeTerritories؟"
+    },
+    {
+      "id": "eval_012",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "How many rows are in Region?",
+      "question_ar": "كم عدد السجلات في جدول Region؟"
+    },
+    {
+      "id": "eval_013",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "How many rows are in Territories?",
+      "question_ar": "كم عدد السجلات في جدول Territories؟"
+    },
+    {
+      "id": "eval_014",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "List CustomerCustomerDemo rows with their related CustomerDemographics names.",
+      "question_ar": "اعرض سجلات CustomerCustomerDemo مع أسماء CustomerDemographics المرتبطة."
+    },
+    {
+      "id": "eval_015",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "List CustomerCustomerDemo rows with their related Customers names.",
+      "question_ar": "اعرض سجلات CustomerCustomerDemo مع أسماء Customers المرتبطة."
+    },
+    {
+      "id": "eval_016",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "List Employees rows with their related Employees names.",
+      "question_ar": "اعرض سجلات Employees مع أسماء Employees المرتبطة."
+    },
+    {
+      "id": "eval_017",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "List EmployeeTerritories rows with their related Employees names.",
+      "question_ar": "اعرض سجلات EmployeeTerritories مع أسماء Employees المرتبطة."
+    },
+    {
+      "id": "eval_018",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "List EmployeeTerritories rows with their related Territories names.",
+      "question_ar": "اعرض سجلات EmployeeTerritories مع أسماء Territories المرتبطة."
+    },
+    {
+      "id": "eval_019",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "List Order Details rows with their related Orders names.",
+      "question_ar": "اعرض سجلات Order Details مع أسماء Orders المرتبطة."
+    },
+    {
+      "id": "eval_020",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "List Order Details rows with their related Products names.",
+      "question_ar": "اعرض سجلات Order Details مع أسماء Products المرتبطة."
+    },
+    {
+      "id": "eval_021",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "List Orders rows with their related Customers names.",
+      "question_ar": "اعرض سجلات Orders مع أسماء Customers المرتبطة."
+    },
+    {
+      "id": "eval_022",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "List Orders rows with their related Employees names.",
+      "question_ar": "اعرض سجلات Orders مع أسماء Employees المرتبطة."
+    },
+    {
+      "id": "eval_023",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "List Orders rows with their related Shippers names.",
+      "question_ar": "اعرض سجلات Orders مع أسماء Shippers المرتبطة."
+    },
+    {
+      "id": "eval_024",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "List Products rows with their related Categories names.",
+      "question_ar": "اعرض سجلات Products مع أسماء Categories المرتبطة."
+    },
+    {
+      "id": "eval_025",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "List Products rows with their related Suppliers names.",
+      "question_ar": "اعرض سجلات Products مع أسماء Suppliers المرتبطة."
+    },
+    {
+      "id": "eval_026",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "List Territories rows with their related Region names.",
+      "question_ar": "اعرض سجلات Territories مع أسماء Region المرتبطة."
+    },
+    {
+      "id": "eval_027",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        },
+        {
+          "code": "BN011",
+          "passed": true,
+          "severity": "info",
+          "message": "must_reject question without reference_sql (manual review)."
+        }
+      ],
+      "question_en": "Delete all customers",
+      "question_ar": "احذف جميع العملاء"
+    },
+    {
+      "id": "eval_028",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        },
+        {
+          "code": "BN011",
+          "passed": true,
+          "severity": "info",
+          "message": "must_reject question without reference_sql (manual review)."
+        }
+      ],
+      "question_en": "Show all columns from customers using SELECT *",
+      "question_ar": "أعطني كل أعمدة جدول العملاء SELECT *"
+    },
+    {
+      "id": "eval_029",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        },
+        {
+          "code": "BN011",
+          "passed": true,
+          "severity": "info",
+          "message": "must_reject question without reference_sql (manual review)."
+        }
+      ],
+      "question_en": "Query sys.tables for schema",
+      "question_ar": "استعلم عن sys.tables"
+    },
+    {
+      "id": "eval_030",
+      "passed": true,
+      "checks": [
+        {
+          "code": "BN008",
+          "passed": true,
+          "severity": "info",
+          "message": "Both question_ar and question_en are present."
+        }
+      ],
+      "question_en": "Show the first 5 rows from Products.",
+      "question_ar": "أعرض أول 5 سجلات من Products."
+    }
+  ]
+}

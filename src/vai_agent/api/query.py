@@ -13,40 +13,20 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from vanna.core.tool import ToolCall, ToolContext
-from vanna.core.user.request_context import RequestContext
 
+from vai_agent.api.deps import build_request_context, require_runtime
 from vai_agent.config.settings import get_settings
 from vai_agent.tools.base import ToolResult
-from vai_agent.vanna_integration.runtime import VaiVannaRuntime
 
 from .rate_limit import get_rate_limiter
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
 
-def _require_runtime(request: Request) -> VaiVannaRuntime:
-    agent = getattr(request.app.state, "agent", None)
-    if agent is None or not isinstance(agent, VaiVannaRuntime):
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Agent is not configured for this deployment.",
-        )
-    return agent
-
-
-def _request_context_dict(request: Request) -> dict[str, Any]:
-    return {
-        "cookies": dict(request.cookies),
-        "headers": {k: v for k, v in request.headers.items()},
-        "remote_addr": request.client.host if request.client else None,
-        "query_params": dict(request.query_params),
-    }
-
-
-async def _resolve_v_user(runtime: VaiVannaRuntime, request: Request) -> object:
+async def _resolve_v_user(runtime: object, request: Request) -> object:
     from vai_agent.users import UserResolutionError
 
-    rc = RequestContext(**_request_context_dict(request))
+    rc = build_request_context(request, {})
     try:
         return await runtime.vanna.user_resolver.resolve_user(rc)
     except UserResolutionError as exc:
@@ -112,7 +92,7 @@ class InvokeRequest(BaseModel):
 
 @router.get("/tools", response_model=ToolListResponse, summary="List available tools")
 async def list_tools(request: Request) -> ToolListResponse:
-    runtime = _require_runtime(request)
+    runtime = require_runtime(request)
     v_user = await _resolve_v_user(runtime, request)
     schemas = await runtime.vanna.tool_registry.get_schemas(v_user)
     tools = [
@@ -137,7 +117,7 @@ async def invoke_tool(
     body: InvokeRequest,
     request: Request,
 ) -> ToolResult:
-    runtime = _require_runtime(request)
+    runtime = require_runtime(request)
     v_user = await _resolve_v_user(runtime, request)
     settings = get_settings()
     limiter = get_rate_limiter()
@@ -167,7 +147,14 @@ async def invoke_tool(
         conversation_id="http-invoke",
         request_id=request_id,
         agent_memory=mem,
-        metadata={"http": _request_context_dict(request)},
+        metadata={
+            "http": {
+                "cookies": dict(request.cookies),
+                "headers": {k: v for k, v in request.headers.items()},
+                "remote_addr": request.client.host if request.client else None,
+                "query_params": dict(request.query_params),
+            },
+        },
     )
     call = ToolCall(id=request_id, name=tool_name, arguments=body.args)
     try:

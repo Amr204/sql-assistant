@@ -1,0 +1,12 @@
+.card {
+  background: var(--color-surface-strong);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-6);
+}
+
+@media (prefers-color-scheme: dark) {
+  .card {
+    background: var(--color-surface-strong);
+  }
+}

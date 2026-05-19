@@ -22,6 +22,15 @@ class SlidingWindowRateLimiter:
         self._hits: dict[str, list[float]] = defaultdict(list)
         self._active: dict[str, int] = defaultdict(int)
 
+    def _cleanup_expired(self) -> None:
+        """Remove hit buckets with no activity in the last 24 hours."""
+        now = time.monotonic()
+        cutoff = now - 86400
+        expired = [k for k, v in self._hits.items() if v and v[-1] < cutoff]
+        for k in expired:
+            del self._hits[k]
+            self._active.pop(k, None)
+
     def _allow_window(self, key: str, *, limit: int, window_seconds: float) -> bool:
         now = time.monotonic()
         cutoff = now - window_seconds
@@ -46,6 +55,8 @@ class SlidingWindowRateLimiter:
         daily = int(getattr(settings, "rate_limit_per_user_per_day", 2000))
 
         with self._lock:
+            if len(self._hits) % 100 == 0:
+                self._cleanup_expired()
             if not self._allow_window(f"user:min:{user_id}", limit=per_user, window_seconds=60):
                 return RateLimitDecision(False, "Per-user minute limit exceeded.")
 

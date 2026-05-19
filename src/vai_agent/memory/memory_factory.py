@@ -7,14 +7,12 @@ call to :func:`create_memory`.
 
 Embedding function
 ------------------
-By default ``AgentMemory`` uses ChromaDB's built-in
-``DefaultEmbeddingFunction`` (all-MiniLM-L6-v2 via ONNX), which is
-downloaded and cached on first use at::
+By default ``AgentMemory`` uses
+``paraphrase-multilingual-MiniLM-L12-v2`` (384-dim, multilingual) via
+:func:`build_embedding_function`, wrapped in
+:class:`~vai_agent.memory.cached_embedding.CachedEmbeddingFunction`.
 
-    ~/.cache/chroma/onnx_models/all-MiniLM-L6-v2/
-
-In tests and offline environments, callers may pass a custom
-``embedding_function`` that returns pre-computed vectors — see
+In tests, callers may pass a custom ``embedding_function`` — see
 ``tests/test_memory_factory.py`` for the lightweight dummy used there.
 
 Collection naming
@@ -43,17 +41,39 @@ from typing import Any
 import chromadb
 from chromadb.api.types import EmbeddingFunction
 
+from vai_agent.memory.cached_embedding import CachedEmbeddingFunction
 from vai_agent.memory.chunking import ProfileChunk
 
 logger = logging.getLogger(__name__)
+
+_MULTILINGUAL_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
+
+_HNSW_COLLECTION = {
+    "hnsw:space": "cosine",
+}
 
 # Default batch size for upsert calls.  Chromadb has no hard limit but
 # large batches can be slow on constrained hardware.
 _UPSERT_BATCH = 100
 
 
-class MemoryError(Exception):
+class AgentMemoryError(Exception):
     """Raised when the memory layer encounters an unrecoverable error."""
+
+
+def build_embedding_function(*, embedding_device: str = "cpu") -> EmbeddingFunction:
+    """Build a cached multilingual MiniLM embedding function for Chroma collections."""
+    from chromadb.utils import embedding_functions
+
+    inner = embedding_functions.SentenceTransformerEmbeddingFunction(
+        model_name=_MULTILINGUAL_MODEL,
+        device=embedding_device,
+    )
+    return CachedEmbeddingFunction(inner)
+
+
+def _collection_metadata(profile_id: str) -> dict[str, Any]:
+    return {**_HNSW_COLLECTION, "profile_id": profile_id}
 
 
 def _collection_name(profile_id: str) -> str:
@@ -172,7 +192,7 @@ class AgentMemory:
                 where=where,
             )
         except Exception as exc:
-            raise MemoryError(f"search failed: {exc}") from exc
+            raise AgentMemoryError(f"search failed: {exc}") from exc
 
         hits: list[dict[str, Any]] = []
         ids = results["ids"][0]
@@ -199,7 +219,7 @@ class AgentMemory:
             client.delete_collection(name)
         self._col = client.get_or_create_collection(
             name=name,
-            metadata={"hnsw:space": "cosine", "profile_id": profile_id},
+            metadata=_collection_metadata(profile_id),
         )
         logger.info("memory: collection reset", extra={"collection": name})
 
@@ -214,6 +234,7 @@ def create_memory(
     profile_id: str,
     persist_dir: str | Path,
     embedding_function: EmbeddingFunction | None = None,
+    embedding_device: str = "cpu",
 ) -> tuple[AgentMemory, chromadb.api.ClientAPI]:
     """Open (or create) a persistent ChromaDB store for *profile_id*.
 
@@ -226,9 +247,11 @@ def create_memory(
         Directory on disk where ChromaDB writes its SQLite files and
         vector index.  Created automatically if absent.
     embedding_function:
-        Optional custom embedding function.  When ``None``, ChromaDB's
-        ``DefaultEmbeddingFunction`` (all-MiniLM-L6-v2) is used.
-        Pass a lightweight dummy in tests to avoid network downloads.
+        Optional custom embedding function.  When ``None``,
+        :func:`build_embedding_function` loads ``paraphrase-multilingual-MiniLM-L12-v2``.
+        Pass a lightweight dummy in tests to avoid model downloads.
+    embedding_device:
+        Device for the sentence-transformer model (``cpu`` or ``cuda``).
 
     Returns
     -------
@@ -242,12 +265,14 @@ def create_memory(
     client = chromadb.PersistentClient(path=str(persist_dir))
     cname = _collection_name(profile_id)
 
+    if embedding_function is None:
+        embedding_function = build_embedding_function(embedding_device=embedding_device)
+
     col_kwargs: dict[str, Any] = {
         "name": cname,
-        "metadata": {"hnsw:space": "cosine", "profile_id": profile_id},
+        "metadata": _collection_metadata(profile_id),
+        "embedding_function": embedding_function,
     }
-    if embedding_function is not None:
-        col_kwargs["embedding_function"] = embedding_function
 
     collection = client.get_or_create_collection(**col_kwargs)
     logger.info(

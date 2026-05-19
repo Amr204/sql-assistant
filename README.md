@@ -5,8 +5,9 @@ databases. Long-term goal: turn natural-language questions (Arabic / English)
 into validated, audited, read-only `SELECT` statements over a known schema.
 
 > Live phase status lives in [`PROGRESS.md`](./PROGRESS.md). The HTTP surface
-> combines **Vanna 2.x** (`vanna.core.agent.Agent`, `ToolRegistry`, stock
-> `ChatHandler`) with profile-driven SQL policy.
+> combines **Vanna 2.x** (`vanna.core.agent.Agent`, `ToolRegistry`,
+> `ChatHandler` / `GuardedChatHandler`) with profile-driven SQL policy and a
+> first-party web UI on **`/app`**.
 
 ---
 
@@ -16,6 +17,12 @@ into validated, audited, read-only `SELECT` statements over a known schema.
 - A local virtual environment at `.venv` inside the repo (mandatory — every
   command below assumes it)
 - Windows / Linux / macOS
+- **Microsoft ODBC Driver for SQL Server** (17 or 18) on the host where the app
+  runs — required whenever agent tools or startup wiring touch the database
+  (matches `DB_DRIVER` in `.env`)
+- A reachable **Microsoft SQL Server** database whose schema matches the active
+  profile (the bundled `dbnwind` profile expects a Northwind-style database;
+  align `DB_DATABASE` with your instance)
 
 GNU `make` is optional; if you're on Windows without `make`, run the
 equivalent commands listed under [Without `make`](#without-make).
@@ -24,64 +31,154 @@ equivalent commands listed under [Without `make`](#without-make).
 
 ## Quick start
 
+This walkthrough takes you from a clean checkout to a running HTTP API and
+lists everything you must supply for **`GET /ready` to return `status: ok`**
+(no HTTP 503). Run all commands from the **repository root** so `profiles/`,
+`.env`, and relative paths such as `CHROMA_PERSIST_DIR` resolve correctly.
+
+### Prerequisites checklist
+
+| Item | Purpose |
+|------|---------|
+| Python 3.11+ | Runtime and tooling |
+| Git checkout at repo root | `profiles/`, `pyproject.toml`, `.env` resolution |
+| Virtualenv at `.venv` | Isolated dependencies (assumed below) |
+| ODBC Driver 17/18 for SQL Server | `pyodbc` connection string in `DB_DRIVER` |
+| SQL Server TCP endpoint + DB | Vanna agent + tools; startup builds a read-only ODBC connection (`ApplicationIntent=ReadOnly`) |
+| Editable `.env` from [`.env.example`](./.env.example) | App + `DB_*` settings |
+
+### What you must configure (data and secrets)
+
+1. **Database (`DB_*` in `.env`)** — Host, port, database name, SQL login, and
+   password. Use a **read-only** SQL user in production. `DB_DRIVER` must match an
+   installed ODBC driver name (for example `ODBC Driver 18 for SQL Server`).
+   Set `DB_TRUST_SERVER_CERTIFICATE=true` only for dev when using self-signed
+   TLS on SQL Server; keep `false` in production.
+2. **Profile id (`DB_PROFILE_ID`)** — Must name a subdirectory under
+   `PROFILES_ROOT` (default `profiles/`). The repo ships **`dbnwind`**; your
+   database schema and table/column names should match what that profile
+   describes (or generate a new profile — see [Profile CLI](#profile-cli-high-level)).
+3. **Chroma (`CHROMA_PERSIST_DIR`)** — Defaults to `.data/chroma`; the directory
+   is created on first run. No manual seeding is strictly required to start, but
+   agent recall improves after [`scripts/seed_memory.py`](#profile-cli-high-level).
+4. **LLM (optional)** — Default `MODEL_PROVIDER=none` uses Vanna’s
+   **`MockLlmService`** (no outbound HTTP). For real natural-language answers,
+   set `MODEL_PROVIDER=openai_compatible` plus `MODEL_API_KEY`, `MODEL_BASE_URL`,
+   and `MODEL_NAME` per `.env.example` (any OpenAI-compatible endpoint).
+
+### 1. Create and activate the virtual environment
+
 ```bash
-# 1. Create + activate a local virtual environment
 python -m venv .venv
+```
 
-# Linux / macOS:
+```bash
+# Linux / macOS
 source .venv/bin/activate
-# Windows PowerShell:
-.\.venv\Scripts\Activate.ps1
+```
 
-# 2. Install runtime + dev dependencies
+```powershell
+# Windows PowerShell
+.\.venv\Scripts\Activate.ps1
+```
+
+### 2. Install dependencies
+
+```bash
 pip install --upgrade pip
 pip install -e ".[dev]"
+```
 
-# 3. Configure environment (DB + profile IDs are required for a green /ready)
-cp .env.example .env          # then edit .env as needed
+Equivalent: `make install` (see [With `make`](#with-make)).
 
-# 4. Run the test suite + linter
+### 3. Configure environment
+
+```bash
+cp .env.example .env
+```
+
+```powershell
+# Windows PowerShell (equivalent)
+Copy-Item .env.example .env
+```
+
+Edit `.env`: set **`DB_*`** for your SQL Server instance, confirm **`DB_PROFILE_ID`**
+matches an existing profile folder (e.g. `dbnwind`), and adjust **`CHROMA_PERSIST_DIR`**
+if you do not want vectors under `.data/chroma`.
+
+### 4. (Recommended) Lint and test
+
+```bash
 ruff check .
 pytest
+```
 
-# 5. Start the FastAPI app (from repo root so profiles/ resolves)
+Equivalent: `make check`.
+
+### 5. Start the API
+
+```bash
 uvicorn vai_agent.main:app --reload
 ```
 
-### Endpoints you should recognise
+Equivalent: `make run` (binds `127.0.0.1:8000` by default; override `HOST` /
+`PORT` in the Makefile invocation if needed).
 
-Open <http://127.0.0.1:8000/health> — liveness probe (always `ok` if the process
-is up):
+### 6. Verify
+
+| URL | Expected |
+|-----|----------|
+| [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health) | Always **`ok`** if the process is up (liveness). |
+| [http://127.0.0.1:8000/ready](http://127.0.0.1:8000/ready) | **`status: ok`** only when profile load, Chroma memory, and DB-backed agent all initialise. HTTP **503** with `errors` if something failed (common: ODBC driver name, firewall, wrong password, or schema/profile mismatch). |
+
+Interactive docs: **`/docs`** and **`/redoc`** when `APP_ENV=dev` (disabled in
+`prod`).
+
+### Optional next steps
+
+- **Real LLM:** set model provider variables in `.env` (see [Optional: model provider](#optional-model-provider-openai-compatible-api) below).
+- **Refresh Chroma from the profile:**  
+  `python scripts/seed_memory.py --profile dbnwind`
+- **New database / schema:** generate and validate a profile from DDL under
+  `data/input/` — see [Profile CLI](#profile-cli-high-level) and
+  [`docs/DATABASE_PROFILE_GUIDE.md`](./docs/DATABASE_PROFILE_GUIDE.md).
+
+### Main HTTP routes (beyond health)
+
+Sample **`GET /health`** body:
 
 ```json
 { "status": "ok", "app": "sql-assistant", "version": "0.1.0", "env": "dev" }
 ```
 
-Open <http://127.0.0.1:8000/ready> — readiness: profile load, DB-backed agent,
-and Chroma memory must all initialise for `status: ok` without HTTP 503.
+Agent tooling: **`GET /agent/tools`**,
+**`POST /agent/tools/{tool_name}/invoke`** (rate-limited; requires a working SQL Server connection).
 
-Interactive API docs: `/docs` and `/redoc` (automatically disabled when
-`APP_ENV=prod`). Agent tooling: **`GET /agent/tools`**,
-**`POST /agent/tools/{tool_name}/invoke`** (rate-limited; needs SQL Server).
+**Official web UI:** **`GET /app`** (Vite build from `web/`, or a minimal “not built” page when `web/dist` is absent).
+**`GET /`** redirects to **`/app`**.
 
-**`POST /chat`** uses **`GuardedChatHandler`** (subclass of Vanna **`ChatHandler`**): rate limits,
-concurrency, prompt-injection checks, and audit run **before** **`Agent.send_message`**
-(the full Vanna agent loop — not manual `llm_service.send_request` / `tool_registry.execute`).
+**`POST /api/v1/chat`** is the versioned UI/API entry point: it uses **`GuardedChatHandler`**
+(subclass of Vanna **`ChatHandler`**) so rate limits, concurrency, prompt-injection checks, and audit
+run **before** **`Agent.send_message`** (the full Vanna agent loop — not manual
+`llm_service.send_request` / `tool_registry.execute`).
 
-Official Vanna HTTP endpoints are registered with the same **`GuardedChatHandler`**:
+Supporting JSON under **`/api/v1`**: **`GET /api/v1/status`**, **`GET /api/v1/profile`**, **`GET /api/v1/tools`**.
 
-- **`POST /api/vanna/v2/chat_poll`**
-- **`POST /api/vanna/v2/chat_sse`**
-- **`WS /api/vanna/v2/chat_websocket`**
+**`POST /chat`** remains as an internal, **deprecated** alias of the same handler stack (for older
+callers); new clients should use **`/api/v1/chat`**.
 
-Stock Vanna UI is served at **`GET /`** when routes are registered.
+Vanna stock UI routes (**`/api/vanna/v2/*`**, bundled **`GET /`** HTML) are **not** registered.
 
-### Optional: OpenRouter (LLM for Vanna Agent)
+### Optional: model provider (OpenAI-compatible API)
 
-Set `LLM_PROVIDER=openrouter`, `OPENROUTER_API_KEY`, and `OPENROUTER_MODEL` per
-`.env.example`. The **Vanna** agent’s `llm_service` is built in
-`vai_agent.vanna_integration.openrouter_llm` (`OpenAILlmService` against OpenRouter).
-Use `LLM_PROVIDER=none` for **`MockLlmService`** (no outbound HTTP).
+Set `MODEL_PROVIDER=openai_compatible`, `MODEL_API_KEY`, `MODEL_BASE_URL`, and
+`MODEL_NAME` per `.env.example` (works with OpenRouter, LM Studio, LiteLLM, Ollama
+OpenAI mode, etc.). The **Vanna** agent’s `llm_service` is built in
+`vai_agent.vanna_integration.model_llm` via `OpenAILlmService`.
+Use `MODEL_PROVIDER=none` for **`MockLlmService`** (no outbound HTTP).
+
+Deprecated env names (`LLM_PROVIDER`, `OPENROUTER_*`) are still read when `MODEL_*`
+is unset.
 
 ---
 
@@ -93,6 +190,10 @@ make lint      # ruff check
 make test      # pytest
 make check     # lint + test (CI-equivalent)
 make run       # uvicorn with reload
+make web-install
+make web-dev   # Vite dev server (proxies /api to :8000)
+make web-build # production bundle → web/dist
+make run-api   # uvicorn with .env on 127.0.0.1:8000
 ```
 
 ## Without `make`
@@ -121,16 +222,19 @@ sql-assistant/
 ├── scripts/                # CLI wrappers (validate_profile, benchmarks, ...)
 ├── docs/                   # ARCHITECTURE, COMPATIBILITY, operations, benchmarking
 ├── data/input/             # schema SQL snapshots for profiling
+├── web/                    # Vite + React first-party UI (build → web/dist)
 ├── src/vai_agent/
 │   ├── main.py             # uvicorn imports `app`
-│   ├── bootstrap.py        # app factory + startup wiring + Vanna routes
-│   ├── api/                # health (/health, /ready) + agent + /chat
+│   ├── bootstrap.py        # app factory + startup wiring + web + API v1
+│   ├── api/                # health (/health, /ready) + agent + /chat + /api/v1
+│   ├── web/                # FastAPI helpers to serve /app
+│   ├── channels/           # future Telegram / Discord adapters (skeleton)
 │   ├── vai_app/            # Context enhancer + legacy sync Agent (tests only)
-│   ├── vanna_integration/ # Vanna Agent factory, GuardedChatHandler, routes
+│   ├── vanna_integration/ # Vanna Agent factory, GuardedChatHandler (no stock HTTP UI)
 │   ├── tools/              # SecureRunSql, ExplainSchema, ProfileSearch
 │   ├── db/                  # ODBC connection + MSSQL runner + schema_extractor
 │   ├── memory/              # Chroma persistent AgentMemory
-│   ├── llm/                 # OpenRouter (OpenAI-compatible) chat completions
+│   ├── llm/                 # OpenAI-compatible chat completions
 │   ├── knowledge/          # ProfileLoader / generators / benchmark
 │   ├── security/
 │   ├── users/
@@ -164,10 +268,10 @@ Primary keys mirror [`.env.example`](./.env.example):
 | `DB_*`             | ODBC + SQL Server   | Required by agent tools + `/ready` checks  |
 | `DB_PROFILE_ID`    | `dbnwind`           | Subdirectory under `PROFILES_ROOT`         |
 | `CHROMA_PERSIST_DIR` | `.data/chroma`    | Persistent vector storage                  |
-| `LLM_PROVIDER`     | `none` / `openrouter` | Configures **Vanna** `llm_service` on `app.state.agent` |
+| `MODEL_PROVIDER`   | `none` / `openai_compatible` | Configures **Vanna** `llm_service` on `app.state.agent` |
 
 See `.env.example` for the full annotated list (`USER_RESOLVER_MODE`,
-`CONTEXT_MAX_TOKENS`, OpenRouter base URL/timeouts, etc.).
+`CONTEXT_MAX_TOKENS`, model base URL/timeouts, etc.).
 
 ---
 

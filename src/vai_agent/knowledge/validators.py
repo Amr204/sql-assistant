@@ -195,9 +195,10 @@ def _check_per_table_profiles(profile: Profile) -> list[ValidationIssue]:
             ))
             continue
         column_names = {c.name for c in table.columns}
+        important_names = [ic.name for ic in tp.important_columns]
         for group, code in (
             (tp.primary_key, "TP003"),
-            (tp.important_columns, "TP004"),
+            (important_names, "TP004"),
             (tp.sensitive_columns, "TP005"),
             (tp.date_columns, "TP006"),
             (tp.status_columns, "TP007"),

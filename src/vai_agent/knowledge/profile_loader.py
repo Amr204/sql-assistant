@@ -15,8 +15,9 @@ Optional files (loader returns an empty default document if absent):
 * ``security_policy.yaml`` (default = restrictive policy from
   :class:`SecurityPolicy`)
 * ``sql_style.yaml``
-* ``tables/<name>.yaml`` — each file becomes one entry in
-  :attr:`Profile.tables`.
+* ``tables.yaml`` — optional unified file with a top-level ``tables:`` map
+  of table name → table profile document; if absent, ``tables/*.yaml`` is
+  used (one file per table).
 
 This is intentionally narrow: no I/O happens outside ``load()``, no
 mutation of disk, and the loader is stateless so unit tests can build it
@@ -137,7 +138,7 @@ class ProfileLoader:
         )
         security_policy = self._optional(directory, "security_policy.yaml", SecurityPolicy)
         sql_style = self._optional(directory, "sql_style.yaml", SqlStyle)
-        tables = self._load_tables(directory / "tables")
+        tables = self._load_tables(directory)
 
         return Profile(
             meta=meta,
@@ -159,7 +160,56 @@ class ProfileLoader:
             return model_cls()
         return _parse_model(model_cls, path, _read_yaml(path))
 
-    def _load_tables(self, tables_dir: Path) -> dict[str, TableProfile]:
+    def _load_tables(self, profile_dir: Path) -> dict[str, TableProfile]:
+        """Load table profiles from ``tables.yaml`` or legacy ``tables/*.yaml``."""
+
+        unified = profile_dir / "tables.yaml"
+        if unified.is_file():
+            return self._load_tables_unified(unified)
+        return self._load_tables_individual(profile_dir / "tables")
+
+    def _load_tables_unified(self, path: Path) -> dict[str, TableProfile]:
+        data = _read_yaml(path)
+        if not isinstance(data, dict):
+            raise ProfileFileError(
+                f"{path}: expected a YAML mapping at top level, got {type(data).__name__}"
+            )
+        raw_tables = data.get("tables")
+        tables: dict[str, TableProfile] = {}
+
+        if isinstance(raw_tables, dict):
+            for _key, table_data in raw_tables.items():
+                if not isinstance(table_data, dict):
+                    raise ProfileFileError(
+                        f"{path}: table entry {_key!r} must be a mapping, got {type(table_data).__name__}"
+                    )
+                tp = TableProfile.model_validate(table_data)
+                if tp.name in tables:
+                    raise ProfileFileError(
+                        f"duplicate table profile for {tp.name!r} in {path.name}"
+                    )
+                tables[tp.name] = tp
+            return tables
+
+        if isinstance(raw_tables, list):
+            for i, table_data in enumerate(raw_tables):
+                if not isinstance(table_data, dict):
+                    raise ProfileFileError(
+                        f"{path}: tables[{i}] must be a mapping, got {type(table_data).__name__}"
+                    )
+                tp = TableProfile.model_validate(table_data)
+                if tp.name in tables:
+                    raise ProfileFileError(
+                        f"duplicate table profile for {tp.name!r} in {path.name}"
+                    )
+                tables[tp.name] = tp
+            return tables
+
+        raise ProfileFileError(
+            f"{path}: 'tables' must be a mapping or a list of table documents, got {type(raw_tables).__name__}"
+        )
+
+    def _load_tables_individual(self, tables_dir: Path) -> dict[str, TableProfile]:
         if not tables_dir.is_dir():
             return {}
         result: dict[str, TableProfile] = {}

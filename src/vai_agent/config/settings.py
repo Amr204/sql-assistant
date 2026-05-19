@@ -6,11 +6,12 @@ when present). Values are validated by Pydantic v2 ``BaseSettings``.
 
 from __future__ import annotations
 
+import os
 from enum import StrEnum
 from functools import lru_cache
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import Field, SecretStr
+from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,11 +27,13 @@ class LlmProvider(StrEnum):
     """Which LLM backend to instantiate (none = disable remote calls)."""
 
     none = "none"
-    openrouter = "openrouter"
+    openai_compatible = "openai_compatible"
 
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 LogFormat = Literal["text", "json"]
+
+_DEFAULT_MODEL_BASE_URL = "https://openrouter.ai/api/v1"
 
 
 class Settings(BaseSettings):
@@ -57,9 +60,32 @@ class Settings(BaseSettings):
         default="text",
         description="Log formatter: 'text' for human-readable, 'json' for structured logs.",
     )
+    log_dir: str = Field(default="logs", description="Directory for application log files.")
+    log_file: str = Field(default="app.log", description="Application log filename (text or JSON lines).")
+
+    enable_sql_csv_exports: bool = Field(
+        default=False,
+        description="When false, RunSqlTool does not receive a file sink (no query_results CSV).",
+    )
+    enable_visualization_tools: bool = Field(
+        default=False,
+        description="Reserved: when false, prompts discourage chart/visualization tool use.",
+    )
+    sql_auto_export_min_rows: int = Field(
+        default=1000,
+        ge=1,
+        description="Minimum rows before auto CSV export would apply (reserved for future use).",
+    )
+
+    audit_enabled: bool = Field(default=True, description="Write activity audit rows to Excel.")
+    audit_dir: str = Field(default="audit", description="Directory for activity audit workbook.")
+    audit_file: str = Field(
+        default="activity_log.xlsx",
+        description="Excel filename for activity audit.",
+    )
 
     context_max_tokens: int = Field(
-        default=4_000,
+        default=2_500,
         ge=256,
         le=128_000,
         description="Maximum estimated tokens for LLM context built by the context enhancer.",
@@ -96,36 +122,72 @@ class Settings(BaseSettings):
         description="Fallback user email used in dev resolver mode.",
     )
     dev_user_groups: str = Field(
-        default="analyst",
+        default="admin",
         description="Comma-separated groups used in dev resolver mode.",
     )
 
-    llm_provider: LlmProvider = Field(
+    sql_fast_path_enabled: bool = Field(
+        default=True,
+        description="When true, clear data questions may use the SQL fast path before the Vanna agent.",
+    )
+    agent_memory_auto_save: bool = Field(
+        default=True,
+        description="When true, successful SQL fast-path runs are saved to Chroma agent memory.",
+    )
+
+    model_provider: LlmProvider = Field(
         default=LlmProvider.none,
-        description="LLM vendor; 'none' skips building a remote chat client at startup.",
+        description="Model vendor; 'none' skips building a remote chat client at startup.",
+        validation_alias=AliasChoices("MODEL_PROVIDER", "LLM_PROVIDER"),
     )
-    openrouter_api_key: SecretStr | None = Field(
+    model_api_key: SecretStr | None = Field(
         default=None,
-        description="Bearer token for OpenRouter (never log this value).",
+        description="Bearer token for the OpenAI-compatible API (never log this value).",
+        validation_alias=AliasChoices("MODEL_API_KEY", "OPENROUTER_API_KEY"),
     )
-    openrouter_base_url: str = Field(
-        default="https://openrouter.ai/api/v1",
-        description="Root URL for OpenAI-compatible endpoints (scheme + host + /api/v1).",
+    model_base_url: str = Field(
+        default=_DEFAULT_MODEL_BASE_URL,
+        description="Root URL for OpenAI-compatible chat completions (scheme + host + /v1).",
+        validation_alias=AliasChoices("MODEL_BASE_URL", "OPENROUTER_BASE_URL"),
     )
-    openrouter_model: str = Field(
+    model_name: str = Field(
         default="",
-        description='Model slug, e.g. "openai/gpt-4o-mini" on OpenRouter.',
+        description='Model slug, e.g. "openai/gpt-4o-mini" or a local server model id.',
+        validation_alias=AliasChoices("MODEL_NAME", "OPENROUTER_MODEL"),
     )
-    openrouter_http_referer: str | None = Field(
+    model_http_referer: str | None = Field(
         default=None,
-        description="Optional HTTP-Referer header recommended by OpenRouter for rankings.",
+        description="Optional HTTP-Referer header for providers that use it (e.g. OpenRouter).",
+        validation_alias=AliasChoices("MODEL_HTTP_REFERER", "OPENROUTER_HTTP_REFERER"),
     )
-    llm_http_timeout_seconds: float = Field(
+    model_http_timeout_seconds: float = Field(
         default=120.0,
         ge=5.0,
         le=600.0,
         description="Wall-clock HTTP timeout for a single completion request.",
+        validation_alias=AliasChoices("MODEL_HTTP_TIMEOUT_SECONDS", "LLM_HTTP_TIMEOUT_SECONDS"),
     )
+    model_fallback_name: str = Field(
+        default="",
+        description="Fallback model slug when the primary model fails after retries.",
+        validation_alias=AliasChoices("MODEL_FALLBACK_NAME", "OPENROUTER_FALLBACK_MODEL"),
+    )
+
+    embedding_device: str = Field(
+        default="cpu",
+        description=(
+            "Device for paraphrase-multilingual-MiniLM-L12-v2 embeddings: 'cpu' or 'cuda'."
+        ),
+    )
+    chunking_strategy: str = Field(
+        default="early",
+        description="Profile chunking: 'early' (chunk then embed) or 'late' (embed then chunk).",
+    )
+    warmup_on_startup: bool = Field(
+        default=True,
+        description="Run a dummy vector search at startup to load the embedding model.",
+    )
+
     rate_limit_per_user_per_minute: int = Field(
         default=120,
         ge=1,
@@ -156,6 +218,89 @@ class Settings(BaseSettings):
         le=1_000,
         description="Maximum in-flight tool invocations per user id.",
     )
+
+    @field_validator("model_provider", mode="before")
+    @classmethod
+    def _coerce_model_provider(cls, v: object) -> object:
+        if v == "openrouter":
+            return LlmProvider.openai_compatible
+        return v
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_model_env(cls, data: Any) -> Any:
+        """Map deprecated env/kwargs; prefer ``MODEL_*`` over ``OPENROUTER_*``."""
+
+        if not isinstance(data, dict):
+            return data
+        merged = dict(data)
+
+        if "llm_provider" in merged and "model_provider" not in merged:
+            merged["model_provider"] = merged.pop("llm_provider")
+
+        prov = merged.get("model_provider")
+        if prov == "openrouter":
+            merged["model_provider"] = LlmProvider.openai_compatible
+
+        def _env(name: str) -> str | None:
+            val = os.environ.get(name) or os.environ.get(name.lower())
+            if val is not None and str(val).strip():
+                return str(val).strip()
+            return None
+
+        def _prefer(field: str, primary_env: str, legacy_env: str) -> None:
+            primary = _env(primary_env)
+            legacy = _env(legacy_env)
+            if primary:
+                merged[field] = primary
+            elif legacy and field not in merged:
+                merged[field] = legacy
+
+        _prefer("model_api_key", "MODEL_API_KEY", "OPENROUTER_API_KEY")
+        _prefer("model_name", "MODEL_NAME", "OPENROUTER_MODEL")
+        _prefer("model_base_url", "MODEL_BASE_URL", "OPENROUTER_BASE_URL")
+        _prefer("model_http_referer", "MODEL_HTTP_REFERER", "OPENROUTER_HTTP_REFERER")
+        _prefer("model_http_timeout_seconds", "MODEL_HTTP_TIMEOUT_SECONDS", "LLM_HTTP_TIMEOUT_SECONDS")
+
+        prov_env = _env("MODEL_PROVIDER") or _env("LLM_PROVIDER")
+        if prov_env:
+            merged["model_provider"] = (
+                LlmProvider.openai_compatible if prov_env == "openrouter" else prov_env
+            )
+
+        return merged
+
+    @property
+    def llm_provider(self) -> LlmProvider:
+        """Deprecated alias for :attr:`model_provider`."""
+
+        return self.model_provider
+
+    @property
+    def effective_model_api_key(self) -> SecretStr | None:
+        return self.model_api_key
+
+    @property
+    def effective_model_name(self) -> str:
+        return self.model_name.strip()
+
+    @property
+    def effective_model_base_url(self) -> str:
+        base = self.model_base_url.strip()
+        return base or _DEFAULT_MODEL_BASE_URL
+
+    @property
+    def effective_model_http_referer(self) -> str | None:
+        ref = (self.model_http_referer or "").strip()
+        return ref or None
+
+    @property
+    def audit_model_provider(self) -> str:
+        """Label for activity audit (only names OpenRouter when that host is configured)."""
+
+        if "openrouter.ai" in self.effective_model_base_url.lower():
+            return "openrouter"
+        return self.model_provider.value
 
     @property
     def is_dev(self) -> bool:

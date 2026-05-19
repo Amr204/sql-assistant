@@ -64,7 +64,7 @@ This app supplies `LegacyUserResolverBridge(UserResolver)` wrapping `vai_agent.u
 
 ---
 
-## LLM (OpenAI-compatible / OpenRouter)
+## LLM (OpenAI-compatible model provider)
 
 | Concept | Canonical import |
 |--------|------------------|

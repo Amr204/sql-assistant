@@ -170,10 +170,12 @@ class TestListTools:
         body = r.json()
         names = {t["name"] for t in body["tools"]}
         assert names == {
+            "admin_only",
             "explain_schema",
             "profile_search",
             "run_sql",
-            "secure_run_sql",
+            "save_question_tool_args",
+            "save_text_memory",
             "search_saved_correct_tool_uses",
         }
 
@@ -239,10 +241,11 @@ class TestInvoke:
         assert not body["success"]
         assert "Invalid arguments" in body["error"]
 
-    def test_invoke_admin_only_tool_denied(self, client_with_agent: TestClient) -> None:
-        r = client_with_agent.post(
+    def test_invoke_admin_only_tool_denied(self, client_header_mode: TestClient) -> None:
+        r = client_header_mode.post(
             "/agent/tools/admin_only/invoke",
             json={"args": {}},
+            headers={"X-User-Id": "alice", "X-User-Groups": "analyst"},
         )
         body = r.json()
         assert not body["success"]
@@ -326,7 +329,8 @@ class TestHeaderModeResolution:
             "explain_schema",
             "profile_search",
             "run_sql",
-            "secure_run_sql",
+            "save_question_tool_args",
+            "save_text_memory",
             "search_saved_correct_tool_uses",
         }
 

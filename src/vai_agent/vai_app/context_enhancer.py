@@ -10,9 +10,8 @@ compact, structured context string for the LLM planner / generator:
    table affinity.
 4. **Security context** — global policy plus per-group constraints for the
    calling :class:`~vai_agent.users.User`.
-5. **Token-limited assembly** — caps total context size using a simple
-   character budget (≈4 characters per token) so large schemas are not sent
-   in full.
+5. **Token-limited assembly** — caps total context size with tiktoken-based
+   budgets and priority-aware section truncation.
 
 Vector memory (:class:`~vai_agent.memory.AgentMemory`) is optional; when
 provided it boosts table/example selection but the enhancer still works
@@ -30,20 +29,31 @@ from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:
     from vai_agent.knowledge.profile_models import Example, GlossaryTerm, Profile, Table
-    from vai_agent.memory.memory_factory import AgentMemory
+    from vai_agent.memory.multi_search import MultiCollectionSearcher
     from vai_agent.users import User
+
+from vai_agent.utils.token_counter import count_tokens
 
 logger = logging.getLogger(__name__)
 
-_CHARS_PER_TOKEN = 4
 _WORD_RE = re.compile(r"[\w\u0600-\u06FF]+", re.UNICODE)
+
+_SECTION_PRIORITY = {
+    "security": 1,
+    "schema": 2,
+    "relationships": 3,
+    "business_rules": 4,
+    "glossary": 5,
+    "examples": 6,
+    "sql_style": 7,
+}
 
 # Latin tokens shorter than this are ignored for overlap scoring.
 _MIN_TERM_LEN = 2
 
 # Relationship expansion runs only when the question suggests a join.
 _JOIN_HINTS: frozenset[str] = frozenset({
-    "join", "with", "each", "per", "between", "across",
+    "join", "between", "across",
     "لكل", "مع", "بين",
 })
 
@@ -57,12 +67,12 @@ _JOIN_HINTS: frozenset[str] = frozenset({
 class ContextEnhancerConfig:
     """Tuning knobs for retrieval breadth and context size."""
 
-    max_tokens: int = 4_000
-    max_tables: int = 8
-    max_examples: int = 3
-    max_glossary_terms: int = 10
-    max_business_rules: int = 5
-    memory_search_results: int = 8
+    max_tokens: int = 2_500
+    max_tables: int = 5
+    max_examples: int = 2
+    max_glossary_terms: int = 6
+    max_business_rules: int = 3
+    memory_search_results: int = 5
 
 
 # ---------------------------------------------------------------------------
@@ -133,13 +143,6 @@ class EnhancementResult(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def estimate_tokens(text: str) -> int:
-    """Approximate token count without an external tokenizer."""
-    if not text:
-        return 0
-    return max(1, (len(text) + _CHARS_PER_TOKEN - 1) // _CHARS_PER_TOKEN)
-
-
 def _normalise_question(text: str) -> str:
     return " ".join(text.split()).lower()
 
@@ -187,19 +190,22 @@ class ContextEnhancer:
         self,
         profile: Profile,
         *,
-        memory: AgentMemory | None = None,
+        memory: MultiCollectionSearcher | None = None,
         config: ContextEnhancerConfig | None = None,
     ) -> None:
         self._profile = profile
         self._memory = memory
         self._config = config or ContextEnhancerConfig()
+        self._table_by_name: dict[str, Table] = {
+            t.name: t for t in profile.database_schema.tables
+        }
 
     def enhance(self, question: str, user: User) -> EnhancementResult:
         """Analyse *question* and return structured context for the LLM."""
         q_norm = _normalise_question(question)
         q_terms = extract_terms(question)
 
-        glossary_matches = self._match_glossary(question, q_norm)
+        glossary_matches = self._match_glossary(question, q_norm, q_terms)
         expand_relationships = _question_suggests_join(q_norm)
         memory_hits = self._memory_search(question) if self._memory else []
 
@@ -232,7 +238,7 @@ class ContextEnhancer:
             examples=examples,
             security=security,
             context_text=context_text,
-            estimated_tokens=estimate_tokens(context_text),
+            estimated_tokens=count_tokens(context_text),
             truncated=truncated,
             sections_included=included,
         )
@@ -245,11 +251,12 @@ class ContextEnhancer:
         self,
         question: str,
         q_norm: str,
+        q_terms: set[str],
     ) -> list[GlossaryMatch]:
         matches: list[tuple[int, GlossaryMatch]] = []
 
         for term in self._profile.glossary.terms:
-            hit = self._glossary_term_hit(term, question, q_norm, self._profile)
+            hit = self._glossary_term_hit(term, question, q_norm, self._profile, q_terms)
             if hit is not None:
                 matched_on, priority = hit
                 matches.append((
@@ -272,6 +279,7 @@ class ContextEnhancer:
         question: str,
         q_norm: str,
         profile: Profile,
+        q_terms: set[str],
     ) -> tuple[str, int] | None:
         """Return (matched_on, priority) or None. Higher priority wins ties."""
         # Longest phrase first — avoids partial phrase false negatives.
@@ -293,7 +301,7 @@ class ContextEnhancer:
                 if (
                     _WORD_RE.fullmatch(v)
                     and len(v) >= _MIN_TERM_LEN
-                    and v_lower in extract_terms(question)
+                    and v_lower in q_terms
                 ):
                     return f"{label}:{v}", priority
                 if v_lower in q_norm:
@@ -347,7 +355,7 @@ class ContextEnhancer:
 
         for table in self._profile.database_schema.tables:
             name_lower = table.name.lower()
-            if name_lower in q_norm or name_lower.replace(" ", "") in q_norm.replace(" ", ""):
+            if re.search(rf"\b{re.escape(name_lower)}\b", q_norm):
                 bump(table.name, 10.0)
 
             tp = self._profile.tables.get(table.name)
@@ -399,8 +407,22 @@ class ContextEnhancer:
         table_set = set(selected_tables)
         scored: list[tuple[float, RetrievedExample]] = []
 
+        semantic_map: dict[str, float] = {}
+        for hit in memory_hits:
+            meta = hit.get("metadata") or {}
+            if meta.get("kind") != "example":
+                continue
+            eid = meta.get("example_id")
+            if not eid:
+                continue
+            dist = float(hit.get("distance", 1.0))
+            semantic_map[str(eid)] = max(semantic_map.get(str(eid), 0.0), max(0.0, 1.0 - dist))
+
         for ex in self._profile.examples.examples:
-            score = self._score_example(question, q_norm, q_terms, ex, table_set)
+            sem = semantic_map.get(ex.id, 0.0)
+            score = self._score_example(
+                question, q_norm, q_terms, ex, table_set, semantic_score=sem,
+            )
             if score <= 0:
                 continue
             display_q = ex.question_en or ex.question_ar or ""
@@ -412,32 +434,6 @@ class ContextEnhancer:
                     question=display_q,
                     sql=ex.sql.strip(),
                     required_tables=list(ex.required_tables),
-                ),
-            ))
-
-        for hit in memory_hits:
-            meta = hit.get("metadata") or {}
-            if meta.get("kind") != "example":
-                continue
-            ex_id = meta.get("example_id")
-            if not ex_id:
-                continue
-            profile_ex = next(
-                (e for e in self._profile.examples.examples if e.id == ex_id),
-                None,
-            )
-            if profile_ex is None:
-                continue
-            bonus = max(0.0, 5.0 - float(hit.get("distance") or 0.0))
-            display_q = profile_ex.question_en or profile_ex.question_ar or ""
-            scored.append((
-                bonus,
-                RetrievedExample(
-                    id=profile_ex.id,
-                    score=bonus,
-                    question=display_q,
-                    sql=profile_ex.sql.strip(),
-                    required_tables=list(profile_ex.required_tables),
                 ),
             ))
 
@@ -460,16 +456,22 @@ class ContextEnhancer:
         q_terms: set[str],
         ex: Example,
         selected_tables: set[str],
+        semantic_score: float = 0.0,
     ) -> float:
+        _ = question
         score = 0.0
         for field in (ex.question_en, ex.question_ar):
             if not field:
                 continue
             field_norm = field.lower()
-            if field_norm in q_norm or q_norm in field_norm:
+            if field_norm in q_norm:
                 score += 10.0
+            elif q_norm in field_norm and len(q_norm) >= 10:
+                score += 5.0
             overlap = len(extract_terms(field) & q_terms)
             score += overlap * 2.0
+
+        score += semantic_score * 8.0
 
         if ex.required_tables and selected_tables:
             overlap = len(set(ex.required_tables) & selected_tables)
@@ -584,7 +586,7 @@ class ContextEnhancer:
                 if table is None:
                     continue
                 score = table_scores.get(name, 0.0)
-                schema_lines.append(self._format_table_schema(table, score))
+                schema_lines.append(self._format_table_schema(table, score, profile=self._profile))
             sections.append(("schema", "\n".join(schema_lines)))
 
             rel_lines = self._format_relationships(selected_tables)
@@ -616,17 +618,38 @@ class ContextEnhancer:
         return sections
 
     def _find_table(self, name: str) -> Table | None:
-        for table in self._profile.database_schema.tables:
-            if table.name == name:
-                return table
-        return None
+        return self._table_by_name.get(name)
 
     @staticmethod
-    def _format_table_schema(table: Table, score: float) -> str:
-        col_lines = [
-            f"  - {c.name} ({c.type})" + (" NOT NULL" if not c.nullable else "")
-            for c in table.columns
-        ]
+    def _format_table_schema(
+        table: Table,
+        score: float,
+        *,
+        profile: Profile | None = None,
+    ) -> str:
+        """Schema snippet with types; merge per-column business hints from ``profile.tables``."""
+
+        hints: dict[str, Any] = {}
+        if profile and profile.tables:
+            tp = profile.tables.get(table.name)
+            if tp:
+                hints = {ic.name: ic for ic in tp.important_columns}
+
+        col_lines: list[str] = []
+        for c in table.columns:
+            line = f"  - {c.name} ({c.type})"
+            if not c.nullable:
+                line += " NOT NULL"
+            desc = c.description or ""
+            ic = hints.get(c.name)
+            if ic is not None:
+                if ic.business_description:
+                    desc = ic.business_description
+                elif ic.business_name_ar:
+                    desc = ic.business_name_ar
+            if desc:
+                line += f" -- {desc}"
+            col_lines.append(line)
         pk = f"PK: {', '.join(table.primary_key)}" if table.primary_key else ""
         fk_parts = [
             f"FK {', '.join(fk.columns)} → {fk.references_table}({', '.join(fk.references_columns)})"
@@ -634,7 +657,14 @@ class ContextEnhancer:
         ]
         header = f"### {table.schema_name}.{table.name} (relevance={score:.1f})"
         body = "\n".join(
-            p for p in [table.description or "", pk, "Columns:\n" + "\n".join(col_lines), *fk_parts] if p
+            p
+            for p in [
+                table.description or "",
+                pk,
+                "Columns:\n" + "\n".join(col_lines),
+                *fk_parts,
+            ]
+            if p
         )
         return f"{header}\n{body}"
 
@@ -668,27 +698,50 @@ class ContextEnhancer:
         self,
         sections: list[tuple[str, str]],
     ) -> tuple[str, bool, list[str]]:
-        budget_chars = self._config.max_tokens * _CHARS_PER_TOKEN
+        budget = self._config.max_tokens
+        sorted_sections = sorted(
+            sections,
+            key=lambda s: _SECTION_PRIORITY.get(s[0], 99),
+        )
+
         parts: list[str] = []
         included: list[str] = []
-        used = 0
+        used_tokens = 0
         truncated = False
 
-        for name, content in sections:
-            content_len = len(content) + 2  # separator newlines
-            if used + content_len <= budget_chars:
+        for name, content in sorted_sections:
+            section_tokens = count_tokens(content)
+            if used_tokens + section_tokens <= budget:
                 parts.append(content)
                 included.append(name)
-                used += content_len
+                used_tokens += section_tokens
                 continue
 
-            remaining = budget_chars - used
-            if remaining > 80:
-                parts.append(content[: remaining - 20] + "\n...[truncated]")
+            remaining = budget - used_tokens
+            if remaining < 50:
+                truncated = True
+                continue
+
+            truncated_content = self._smart_truncate(content, remaining)
+            if truncated_content:
+                parts.append(truncated_content)
                 included.append(name)
-                truncated = True
-            else:
-                truncated = True
-            break
+                used_tokens += count_tokens(truncated_content)
+            truncated = True
 
         return "\n\n".join(parts), truncated, included
+
+    @staticmethod
+    def _smart_truncate(content: str, max_tokens: int) -> str:
+        """Truncate at paragraph boundaries instead of mid-sentence."""
+        paragraphs = content.split("\n\n")
+        result: list[str] = []
+        used = 0
+        for para in paragraphs:
+            para_tokens = count_tokens(para)
+            if used + para_tokens <= max_tokens:
+                result.append(para)
+                used += para_tokens
+            else:
+                break
+        return "\n\n".join(result) if result else ""

@@ -1,0 +1,720 @@
+# ═══════════════════════════════════════════════════════════════════════
+# DBnwind — جدول الجداول الموحد
+# كل جدول يحتوي: وصف تجاري، أعمدة مهمة مع وصف، فلاتر، JOINs، أسئلة شائعة
+# ═══════════════════════════════════════════════════════════════════════
+
+tables:
+
+# ─── الجداول الرئيسية (الأكثر استخداماً) ────────────────────────────
+
+- name: Customers
+  schema: dbo
+  business_description: "جدول العملاء - يحتوي بيانات كل عميل تعامل مع الشركة. كل عميل له رقم تعريف فريد CustomerID (5 أحرف) واسم شركة إلزامي. يشمل بيانات الاتصال والعنوان الجغرافي. العملاء هم الطرف الرئيسي في الطلبات Orders."
+  business_name_ar: "العملاء"
+  primary_key:
+  - CustomerID
+  important_columns:
+  - name: CustomerID
+    business_description: "معرف العميل الفريد - 5 أحرف مثال: ALFKI, VINET. يستخدم كـ FK في Orders و CustomerCustomerDemo"
+    business_name_ar: "رقم العميل"
+  - name: CompanyName
+    business_description: "اسم شركة العميل - إلزامي دائماً. العمود الأهم لعرض أسماء العملاء في التقارير"
+    business_name_ar: "اسم الشركة"
+  - name: ContactName
+    business_description: "اسم شخص الاتصال لدى العميل"
+    business_name_ar: "اسم جهة الاتصال"
+  - name: ContactTitle
+    business_description: "المسمى الوظيفي لشخص الاتصال (مثل: Owner, Sales Manager)"
+    business_name_ar: "المسمى الوظيفي"
+  - name: City
+    business_description: "مدينة العميل - مهم لتقارير التوزيع الجغرافي والتجميع حسب المدينة"
+    business_name_ar: "المدينة"
+  - name: Country
+    business_description: "دولة العميل - مهم لتقارير التوزيع الجغرافي والتجميع حسب الدولة"
+    business_name_ar: "الدولة"
+  - name: Region
+    business_description: "المنطقة/الولاية - مكمل للعنوان الجغرافي"
+    business_name_ar: "المنطقة"
+  sensitive_columns:
+  - ContactName
+  - Phone
+  - Address
+  date_columns: []
+  status_columns: []
+  relationships:
+  - target: Orders
+    type: one_to_many
+    via: CustomerID
+    description: "كل عميل يمكن أن يكون له عدة طلبات. JOIN: Customers.CustomerID = Orders.CustomerID"
+  - target: CustomerCustomerDemo
+    type: one_to_many
+    via: CustomerID
+    description: "كل عميل يمكن أن يرتبط بعدة تصنيفات ديموغرافية"
+  common_filters:
+  - "WHERE Country = N'Germany' -- تصفية حسب دولة معينة (استخدم N'' للنصوص)"
+  - "WHERE City IS NOT NULL -- العملاء الذين لديهم مدينة محددة"
+  - "WHERE CompanyName LIKE N'%abc%' -- البحث في اسم الشركة"
+  common_joins:
+  - target: Orders
+    on: "Customers.CustomerID = Orders.CustomerID"
+    purpose: "ربط العملاء بطلباتهم لمعرفة مشتريات كل عميل وإجمالي إنفاقه"
+    example: "SELECT c.CompanyName, COUNT(o.OrderID) FROM dbo.Customers AS c INNER JOIN dbo.Orders AS o ON c.CustomerID = o.CustomerID GROUP BY c.CompanyName"
+  - target: "Order Details"
+    on: "Customers.CustomerID → Orders.CustomerID → [Order Details].OrderID"
+    purpose: "ربط العملاء بتفاصيل الطلبات لحساب إيرادات كل عميل"
+    example: "SELECT c.CompanyName, SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)) AS TotalRevenue FROM dbo.Customers AS c INNER JOIN dbo.Orders AS o ON c.CustomerID = o.CustomerID INNER JOIN dbo.[Order Details] AS od ON o.OrderID = od.OrderID GROUP BY c.CompanyName ORDER BY TotalRevenue DESC"
+  common_questions:
+  - ar: "من أكثر العملاء طلباً؟"
+    en: "Which customers placed the most orders?"
+    sql_hint: "GROUP BY CompanyName, COUNT(OrderID), ORDER BY DESC"
+  - ar: "ما إجمالي مبيعات كل عميل؟"
+    en: "What is the total revenue per customer?"
+    sql_hint: "JOIN Orders + Order Details, SUM(UnitPrice*Quantity*(1-Discount)), GROUP BY CompanyName"
+  - ar: "كم عدد العملاء في كل دولة؟"
+    en: "How many customers per country?"
+    sql_hint: "GROUP BY Country, COUNT(CustomerID)"
+  - ar: "أعلى 10 عملاء من حيث الإنفاق"
+    en: "Top 10 customers by spending"
+    sql_hint: "JOIN Orders + Order Details, SUM revenue, TOP 10 ORDER BY DESC"
+  examples: []
+  confidence: high
+
+- name: Orders
+  schema: dbo
+  business_description: "جدول الطلبات - السجل الرئيسي لكل طلب شراء. كل طلب يربط عميل بموظف وشاحن. يحتوي تواريخ مهمة: OrderDate (تاريخ الطلب)، RequiredDate (التاريخ المطلوب)، ShippedDate (تاريخ الشحن). الشحن يتم عبر ShipVia الذي يشير لشركة الشحن."
+  business_name_ar: "الطلبات"
+  primary_key:
+  - OrderID
+  important_columns:
+  - name: OrderID
+    business_description: "معرف الطلب الفريد - ترقيم تلقائي. يستخدم كـ FK في Order Details"
+    business_name_ar: "رقم الطلب"
+  - name: CustomerID
+    business_description: "رقم العميل - FK يشير لـ Customers. يمكن أن يكون NULL (طلب بدون عميل مسجل)"
+    business_name_ar: "رقم العميل"
+  - name: EmployeeID
+    business_description: "رقم الموظف - FK يشير لـ Employees. الموظف الذي معالج الطلب"
+    business_name_ar: "رقم الموظف"
+  - name: OrderDate
+    business_description: "تاريخ إنشاء الطلب - مهم جداً لتقارير المبيعات الشهرية والربعية والسنوية"
+    business_name_ar: "تاريخ الطلب"
+  - name: RequiredDate
+    business_description: "التاريخ المطلوب التسليم فيه - يحدد موعد التسليم المتوقع"
+    business_name_ar: "التاريخ المطلوب"
+  - name: ShippedDate
+    business_description: "تاريخ الشحن الفعلي - NULL يعني الطلب لم يشحن بعد. الطلب مشحون = ShippedDate IS NOT NULL"
+    business_name_ar: "تاريخ الشحن"
+  - name: ShipVia
+    business_description: "رقم شركة الشحن - FK يشير لـ Shippers.ShipperID (1=Speedy Express, 2=United Package, 3=Federal Shipping)"
+    business_name_ar: "شركة الشحن"
+  - name: Freight
+    business_description: "تكلفة الشحن بالعملة - يمكن أن تكون NULL"
+    business_name_ar: "تكلفة الشحن"
+  - name: ShipCountry
+    business_description: "بلد الشحن - مهم لتقارير التوزيع الجغرافي للطلبات"
+    business_name_ar: "بلد الشحن"
+  sensitive_columns: []
+  date_columns:
+  - OrderDate
+  - RequiredDate
+  - ShippedDate
+  status_columns:
+  - column: ShippedDate
+    logic: "NULL = لم يشحن، NOT NULL = تم الشحن"
+  relationships:
+  - target: Customers
+    type: many_to_one
+    via: CustomerID
+    description: "كل طلب يتبع لعميل واحد. JOIN: Orders.CustomerID = Customers.CustomerID"
+  - target: Employees
+    type: many_to_one
+    via: EmployeeID
+    description: "كل طلب يعالجه موظف واحد. JOIN: Orders.EmployeeID = Employees.EmployeeID"
+  - target: Shippers
+    type: many_to_one
+    via: ShipVia
+    description: "كل طلب يشحن عبر شركة شحن واحدة. JOIN: Orders.ShipVia = Shippers.ShipperID"
+  - target: "Order Details"
+    type: one_to_many
+    via: OrderID
+    description: "كل طلب يحتوي عدة بنود تفصيلية. JOIN: Orders.OrderID = [Order Details].OrderID"
+  common_filters:
+  - "WHERE OrderDate >= '19970101' AND OrderDate < '19980101' -- طلبات سنة 1997"
+  - "WHERE ShippedDate IS NOT NULL -- الطلبات المشحونة فقط"
+  - "WHERE ShippedDate IS NULL -- الطلبات غير المشحونة"
+  - "WHERE ShipCountry = N'France' -- طلبات دولة معينة"
+  - "WHERE YEAR(OrderDate) = 1997 -- طلبات سنة معينة"
+  common_joins:
+  - target: Customers
+    on: "Orders.CustomerID = Customers.CustomerID"
+    purpose: "معرفة اسم العميل لكل طلب"
+  - target: Employees
+    on: "Orders.EmployeeID = Employees.EmployeeID"
+    purpose: "معرفة اسم الموظف الذي عالج الطلب"
+  - target: "Order Details"
+    on: "Orders.OrderID = [Order Details].OrderID"
+    purpose: "ربط الطلب ببنوده التفصيلية لحساب إجمالي الطلب"
+  - target: Shippers
+    on: "Orders.ShipVia = Shippers.ShipperID"
+    purpose: "معرفة اسم شركة الشحن"
+  common_questions:
+  - ar: "كم عدد الطلبات لكل شهر؟"
+    en: "How many orders per month?"
+    sql_hint: "GROUP BY YEAR(OrderDate), MONTH(OrderDate), COUNT(OrderID)"
+  - ar: "ما إجمالي مبيعات كل شهر؟"
+    en: "What are the monthly sales totals?"
+    sql_hint: "JOIN Order Details, SUM(UnitPrice*Quantity*(1-Discount)), GROUP BY YEAR/MONTH"
+  - ar: "كم طلب لم يشحن بعد؟"
+    en: "How many orders are not yet shipped?"
+    sql_hint: "WHERE ShippedDate IS NULL, COUNT(*)"
+  - ar: "ما متوسط تكلفة الشحن؟"
+    en: "What is the average freight cost?"
+    sql_hint: "AVG(Freight)"
+  - ar: "أي موظف عالج أكثر طلبات؟"
+    en: "Which employee processed the most orders?"
+    sql_hint: "JOIN Employees, GROUP BY EmployeeID, COUNT, TOP 1"
+  examples: []
+  confidence: high
+
+- name: Order Details
+  schema: dbo
+  business_description: "جدول بنود الطلبات - الجدول المحوري لتفاصيل كل طلب. كل سطر يمثل منتج واحد داخل طلب. يحتوي السعر والكمية والخصم. إيرادات البند = UnitPrice * Quantity * (1 - Discount). المفتاح الأساسي مركب من OrderID + ProductID."
+  business_name_ar: "تفاصيل الطلبات"
+  primary_key:
+  - OrderID
+  - ProductID
+  important_columns:
+  - name: OrderID
+    business_description: "رقم الطلب - FK يشير لـ Orders. جزء من المفتاح الأساسي المركب"
+    business_name_ar: "رقم الطلب"
+  - name: ProductID
+    business_description: "رقم المنتج - FK يشير لـ Products. جزء من المفتاح الأساسي المركب"
+    business_name_ar: "رقم المنتج"
+  - name: UnitPrice
+    business_description: "سعر الوحدة وقت الطلب - نوع money. قد يختلف عن سعر المنتج الحالي لأن الأسعار تتغير"
+    business_name_ar: "سعر الوحدة"
+  - name: Quantity
+    business_description: "الكمية المطلوبة من المنتج - نوع smallint. دائماً أكبر من 0"
+    business_name_ar: "الكمية"
+  - name: Discount
+    business_description: "نسبة الخصم - نوع real (0.0 إلى 1.0). الخصم = 0.15 يعني 15% خصم. يستخدم في حساب الإيرادات: UnitPrice * Quantity * (1 - Discount)"
+    business_name_ar: "الخصم"
+  sensitive_columns: []
+  date_columns: []
+  status_columns: []
+  relationships:
+  - target: Orders
+    type: many_to_one
+    via: OrderID
+    description: "كل بند يتبع لطلب واحد. JOIN: [Order Details].OrderID = Orders.OrderID"
+  - target: Products
+    type: many_to_one
+    via: ProductID
+    description: "كل بند يشير لمنتج واحد. JOIN: [Order Details].ProductID = Products.ProductID"
+  common_filters:
+  - "WHERE Discount > 0 -- البنود التي عليها خصم"
+  - "WHERE Quantity > 50 -- بنود بكميات كبيرة"
+  common_joins:
+  - target: Orders
+    on: "[Order Details].OrderID = Orders.OrderID"
+    purpose: "ربط البند بطلب للحصول على تاريخ الطلب وبيانات العميل"
+  - target: Products
+    on: "[Order Details].ProductID = Products.ProductID"
+    purpose: "ربط البند بالمنتج لمعرفة اسم المنتج وفئته"
+  - target: Orders + Customers
+    on: "[Order Details].OrderID = Orders.OrderID AND Orders.CustomerID = Customers.CustomerID"
+    purpose: "ربط البند بالعميل لتحليل الإنفاق حسب العميل"
+  - target: Products + Categories
+    on: "[Order Details].ProductID = Products.ProductID AND Products.CategoryID = Categories.CategoryID"
+    purpose: "ربط البند بالفئة لتحليل المبيعات حسب الفئة"
+  common_questions:
+  - ar: "ما أكثر المنتجات مبيعاً؟"
+    en: "What are the best-selling products?"
+    sql_hint: "JOIN Products, SUM(Quantity), GROUP BY ProductName, ORDER BY DESC"
+  - ar: "ما إجمالي الإيرادات؟"
+    en: "What is the total revenue?"
+    sql_hint: "SUM(UnitPrice * Quantity * (1 - Discount))"
+  - ar: "ما أكثر الفئات مبيعاً؟"
+    en: "Which categories generate the most revenue?"
+    sql_hint: "JOIN Products + Categories, SUM revenue, GROUP BY CategoryName"
+  - ar: "ما متوسط قيمة الطلب؟"
+    en: "What is the average order value?"
+    sql_hint: "SUM per order, then AVG. Or use subquery with GROUP BY OrderID"
+  - ar: "أي منتج حقق أعلى إيرادات؟"
+    en: "Which product generated the highest revenue?"
+    sql_hint: "JOIN Products, SUM(UnitPrice*Quantity*(1-Discount)), GROUP BY ProductName, TOP 1"
+  examples: []
+  confidence: high
+
+- name: Products
+  schema: dbo
+  business_description: "جدول المنتجات - يحتوي كل منتج متوفر للبيع. كل منتج يتبع لفئة واحدة (CategoryID) ومورد واحد (SupplierID). المنتج المتوفر = UnitsInStock > 0. المنتج المتوقف = Discontinued = 1. السعر الأساسي في UnitPrice."
+  business_name_ar: "المنتجات"
+  primary_key:
+  - ProductID
+  important_columns:
+  - name: ProductID
+    business_description: "معرف المنتج الفريد - ترقيم تلقائي. يستخدم كـ FK في Order Details"
+    business_name_ar: "رقم المنتج"
+  - name: ProductName
+    business_description: "اسم المنتج - إلزامي وفريد عملياً. العمود الأساسي لعرض أسماء المنتجات"
+    business_name_ar: "اسم المنتج"
+  - name: SupplierID
+    business_description: "رقم المورد - FK يشير لـ Suppliers. المورد الذي يوفر هذا المنتج"
+    business_name_ar: "رقم المورد"
+  - name: CategoryID
+    business_description: "رقم الفئة - FK يشير لـ Categories. الفئة التي ينتمي لها المنتج"
+    business_name_ar: "رقم الفئة"
+  - name: UnitPrice
+    business_description: "سعر وحدة المنتج - نوع money. يمكن أن يكون 0 أو NULL. قد يختلف عن السعر في Order Details"
+    business_name_ar: "سعر الوحدة"
+  - name: UnitsInStock
+    business_description: "عدد الوحدات في المخزون - نوع smallint. المنتج متوفر = UnitsInStock > 0"
+    business_name_ar: "الوحدات في المخزون"
+  - name: UnitsOnOrder
+    business_description: "عدد الوحدات المطلوبة في طلبات لم تشحن بعد"
+    business_name_ar: "الوحدات المطلوبة"
+  - name: ReorderLevel
+    business_description: "مستوى إعادة الطلب - إذا وصل المخزون لهذا الرقم يجب طلب كمية جديدة"
+    business_name_ar: "مستوى إعادة الطلب"
+  - name: Discontinued
+    business_description: "علامة توقف المنتج - 0 = متوفر (نشط)، 1 = متوقف (لا يباع). استخدم WHERE Discontinued = 0 للمنتجات النشطة"
+    business_name_ar: "متوقف"
+  sensitive_columns: []
+  date_columns: []
+  status_columns:
+  - column: Discontinued
+    logic: "0 = منتج نشط/متوفر، 1 = منتج متوقف"
+  relationships:
+  - target: Categories
+    type: many_to_one
+    via: CategoryID
+    description: "كل منتج ينتمي لفئة واحدة. JOIN: Products.CategoryID = Categories.CategoryID"
+  - target: Suppliers
+    type: many_to_one
+    via: SupplierID
+    description: "كل منتج يوفره مورد واحد. JOIN: Products.SupplierID = Suppliers.SupplierID"
+  - target: "Order Details"
+    type: one_to_many
+    via: ProductID
+    description: "كل منتج يمكن أن يظهر في عدة بنود طلبات"
+  common_filters:
+  - "WHERE Discontinued = 0 -- المنتجات النشطة فقط"
+  - "WHERE UnitsInStock = 0 -- المنتجات غير المتوفرة"
+  - "WHERE UnitPrice > 50 -- المنتجات الغالية"
+  - "WHERE UnitsInStock < ReorderLevel -- منتجات تحتاج إعادة طلب"
+  common_joins:
+  - target: Categories
+    on: "Products.CategoryID = Categories.CategoryID"
+    purpose: "معرفة فئة المنتج"
+  - target: Suppliers
+    on: "Products.SupplierID = Suppliers.SupplierID"
+    purpose: "معرفة مورد المنتج"
+  - target: "Order Details"
+    on: "Products.ProductID = [Order Details].ProductID"
+    purpose: "ربط المنتج ببيانات المبيعات لحساب الإيرادات والكميات المباعة"
+  common_questions:
+  - ar: "ما أغلى 10 منتجات؟"
+    en: "What are the 10 most expensive products?"
+    sql_hint: "TOP 10 ... ORDER BY UnitPrice DESC"
+  - ar: "كم عدد المنتجات في كل فئة؟"
+    en: "How many products per category?"
+    sql_hint: "JOIN Categories, GROUP BY CategoryName, COUNT"
+  - ar: "ما المنتجات التي نفد المخزون؟"
+    en: "Which products are out of stock?"
+    sql_hint: "WHERE UnitsInStock = 0"
+  - ar: "ما المنتجات التي تحتاج إعادة طلب؟"
+    en: "Which products need reordering?"
+    sql_hint: "WHERE UnitsInStock <= ReorderLevel AND Discontinued = 0"
+  examples: []
+  confidence: high
+
+- name: Employees
+  schema: dbo
+  business_description: "جدول الموظفين - يحتوي بيانات كل موظف في الشركة. كل موظف يمكن أن يكون له مدير (ReportsTo يشير لموظف آخر). الموظف هو من يعالج الطلبات Orders. الاسم الكامل = FirstName + ' ' + LastName."
+  business_name_ar: "الموظفين"
+  primary_key:
+  - EmployeeID
+  important_columns:
+  - name: EmployeeID
+    business_description: "معرف الموظف الفريد - ترقيم تلقائي. يستخدم كـ FK في Orders و EmployeeTerritories"
+    business_name_ar: "رقم الموظف"
+  - name: LastName
+    business_description: "اسم العائلة - إلزامي. استخدم FirstName + ' ' + LastName للاسم الكامل"
+    business_name_ar: "اسم العائلة"
+  - name: FirstName
+    business_description: "الاسم الأول - إلزامي. الاسم الكامل = FirstName + ' ' + LastName"
+    business_name_ar: "الاسم الأول"
+  - name: Title
+    business_description: "المسمى الوظيفي (مثل: Sales Representative, Vice President, Sales Manager)"
+    business_name_ar: "المسمى الوظيفي"
+  - name: ReportsTo
+    business_description: "رقم مدير الموظف المباشر - FK يشير لـ Employees.EmployeeID (Self-reference). NULL = الموظف ليس له مدير (الإدارة العليا)"
+    business_name_ar: "المدير المباشر"
+  - name: HireDate
+    business_description: "تاريخ التوظيف - مهم لتقارير أقدمية الموظفين"
+    business_name_ar: "تاريخ التوظيف"
+  - name: Country
+    business_description: "دولة الموظف - مهم لتقارير التوزيع الجغرافي للموظفين"
+    business_name_ar: "الدولة"
+  sensitive_columns:
+  - HomePhone
+  - Address
+  date_columns:
+  - BirthDate
+  - HireDate
+  status_columns: []
+  relationships:
+  - target: Employees
+    type: self_reference
+    via: ReportsTo → EmployeeID
+    description: "كل موظف قد يكون له مدير مباشر. JOIN: e1.ReportsTo = e2.EmployeeID (e1= subordinate, e2= manager)"
+  - target: Orders
+    type: one_to_many
+    via: EmployeeID
+    description: "كل موظف يعالج عدة طلبات"
+  - target: EmployeeTerritories
+    type: one_to_many
+    via: EmployeeID
+    description: "كل موظف يغطي عدة مناطق بيع"
+  common_filters:
+  - "WHERE Title = N'Sales Representative' -- تصفية حسب المسمى الوظيفي"
+  - "WHERE Country = N'USA' -- موظفين دولة معينة"
+  - "WHERE ReportsTo IS NULL -- الموظفون في القمة (بدون مدير)"
+  common_joins:
+  - target: Orders
+    on: "Employees.EmployeeID = Orders.EmployeeID"
+    purpose: "معرفة طلبات كل موظف وأدائه في المبيعات"
+  - target: "Orders + Order Details"
+    on: "Employees.EmployeeID = Orders.EmployeeID AND Orders.OrderID = [Order Details].OrderID"
+    purpose: "حساب إجمالي مبيعات كل موظف"
+  - target: Employees (self)
+    on: "e.ReportsTo = m.EmployeeID"
+    purpose: "معرفة مدير كل موظف والعلاقة الهرمية"
+  common_questions:
+  - ar: "أي موظف حقق أعلى مبيعات؟"
+    en: "Which employee generated the highest sales?"
+    sql_hint: "JOIN Orders + Order Details, SUM(UnitPrice*Quantity*(1-Discount)), GROUP BY EmployeeID"
+  - ar: "كم عدد الطلبات لكل موظف؟"
+    en: "How many orders per employee?"
+    sql_hint: "JOIN Orders, GROUP BY EmployeeID, COUNT(OrderID)"
+  - ar: "من هو مدير كل موظف؟"
+    en: "Who is each employee's manager?"
+    sql_hint: "Self-join: e.ReportsTo = m.EmployeeID"
+  examples: []
+  confidence: high
+
+# ─── جداول الدعم ───────────────────────────────────────────────────
+
+- name: Categories
+  schema: dbo
+  business_description: "جدول الفئات - يصنف المنتجات لمجموعات منطقية (مثل: Beverages, Condiments, Confections). كل فئة لها اسم ووصف وصورة. الفئة هي المستوى الأول في تحليل المبيعات."
+  business_name_ar: "فئات المنتجات"
+  primary_key:
+  - CategoryID
+  important_columns:
+  - name: CategoryID
+    business_description: "معرف الفئة الفريد - ترقيم تلقائي. يستخدم كـ FK في Products"
+    business_name_ar: "رقم الفئة"
+  - name: CategoryName
+    business_description: "اسم الفئة - إلزامي (مثل: Beverages, Condiments, Confections, Dairy Products). العمود الأساسي في تقارير المبيعات حسب الفئة"
+    business_name_ar: "اسم الفئة"
+  - name: Description
+    business_description: "وصف الفئة - نص طويل يشرح محتوى الفئة"
+    business_name_ar: "الوصف"
+  sensitive_columns: []
+  date_columns: []
+  status_columns: []
+  relationships:
+  - target: Products
+    type: one_to_many
+    via: CategoryID
+    description: "كل فئة تحتوي عدة منتجات. JOIN: Categories.CategoryID = Products.CategoryID"
+  common_filters: []
+  common_joins:
+  - target: Products
+    on: "Categories.CategoryID = Products.CategoryID"
+    purpose: "ربط الفئة بمنتجاتها"
+  - target: "Products + Order Details + Orders"
+    on: "Categories.CategoryID = Products.CategoryID AND Products.ProductID = [Order Details].ProductID AND [Order Details].OrderID = Orders.OrderID"
+    purpose: "تحليل المبيعات حسب الفئة"
+  common_questions:
+  - ar: "ما أكثر فئة مبيعاً؟"
+    en: "Which category has the highest sales?"
+    sql_hint: "JOIN Products + Order Details, SUM(UnitPrice*Quantity*(1-Discount)), GROUP BY CategoryName"
+  - ar: "كم منتج في كل فئة؟"
+    en: "How many products in each category?"
+    sql_hint: "JOIN Products, GROUP BY CategoryName, COUNT"
+  - ar: "ما متوسط سعر المنتجات في كل فئة؟"
+    en: "What is the average product price per category?"
+    sql_hint: "JOIN Products, AVG(UnitPrice), GROUP BY CategoryName"
+  examples: []
+  confidence: high
+
+- name: Suppliers
+  schema: dbo
+  business_description: "جدول الموردين - يحتوي بيانات كل مورد يوفر منتجات للشركة. كل مورد له رقم تعريف فريد واسم شركة إلزامي. يشمل بيانات الاتصال والعنوان الجغرافي والموقع الإلكتروني."
+  business_name_ar: "الموردين"
+  primary_key:
+  - SupplierID
+  important_columns:
+  - name: SupplierID
+    business_description: "معرف المورد الفريد - ترقيم تلقائي. يستخدم كـ FK في Products"
+    business_name_ar: "رقم المورد"
+  - name: CompanyName
+    business_description: "اسم شركة المورد - إلزامي. العمود الأهم لعرض أسماء الموردين"
+    business_name_ar: "اسم شركة المورد"
+  - name: ContactName
+    business_description: "اسم شخص الاتصال لدى المورد"
+    business_name_ar: "جهة الاتصال"
+  - name: Country
+    business_description: "دولة المورد - مهم لتقارير التوزيع الجغرافي"
+    business_name_ar: "الدولة"
+  - name: HomePage
+    business_description: "الموقع الإلكتروني للمورد - نوع ntext"
+    business_name_ar: "الموقع الإلكتروني"
+  sensitive_columns: []
+  date_columns: []
+  status_columns: []
+  relationships:
+  - target: Products
+    type: one_to_many
+    via: SupplierID
+    description: "كل مورد يوفر عدة منتجات. JOIN: Suppliers.SupplierID = Products.SupplierID"
+  common_filters:
+  - "WHERE Country = N'Japan' -- موردون من دولة معينة"
+  common_joins:
+  - target: Products
+    on: "Suppliers.SupplierID = Products.SupplierID"
+    purpose: "معرفة المنتجات التي يوفرها كل مورد"
+  - target: "Products + Order Details"
+    on: "Suppliers.SupplierID = Products.SupplierID AND Products.ProductID = [Order Details].ProductID"
+    purpose: "حساب إجمالي مبيعات منتجات كل مورد"
+  common_questions:
+  - ar: "كم منتج يوفر كل مورد؟"
+    en: "How many products does each supplier provide?"
+    sql_hint: "JOIN Products, GROUP BY CompanyName, COUNT"
+  - ar: "من هم الموردون في كل دولة؟"
+    en: "Which suppliers are in each country?"
+    sql_hint: "GROUP BY Country, or WHERE Country = N'...'"
+  examples: []
+  confidence: high
+
+- name: Shippers
+  schema: dbo
+  business_description: "جدول شركات الشحن - يحتوي 3 شركات شحن فقط: Speedy Express (1)، United Package (2)، Federal Shipping (3). العمود ShipVia في Orders يشير لهذا الجدول."
+  business_name_ar: "شركات الشحن"
+  primary_key:
+  - ShipperID
+  important_columns:
+  - name: ShipperID
+    business_description: "معرف شركة الشحن الفريد - 1=Speedy Express, 2=United Package, 3=Federal Shipping"
+    business_name_ar: "رقم شركة الشحن"
+  - name: CompanyName
+    business_description: "اسم شركة الشحن - إلزامي"
+    business_name_ar: "اسم شركة الشحن"
+  - name: Phone
+    business_description: "رقم هاتف شركة الشحن"
+    business_name_ar: "الهاتف"
+  sensitive_columns: []
+  date_columns: []
+  status_columns: []
+  relationships:
+  - target: Orders
+    type: one_to_many
+    via: ShipVia
+    description: "كل شركة شحن تشحن عدة طلبات. JOIN: Shippers.ShipperID = Orders.ShipVia"
+  common_filters: []
+  common_joins:
+  - target: Orders
+    on: "Shippers.ShipperID = Orders.ShipVia"
+    purpose: "معرفة طلبات كل شركة شحن"
+  common_questions:
+  - ar: "كم طلب شحنت كل شركة شحن؟"
+    en: "How many orders did each shipper deliver?"
+    sql_hint: "JOIN Orders, GROUP BY CompanyName, COUNT"
+  - ar: "ما متوسط تكلفة الشحن لكل شركة؟"
+    en: "What is the average freight per shipper?"
+    sql_hint: "JOIN Orders, AVG(Freight), GROUP BY CompanyName"
+  examples: []
+  confidence: high
+
+# ─── جغرافية وتنظيم ────────────────────────────────────────────────
+
+- name: Territories
+  schema: dbo
+  business_description: "جدول المناطق البيعية - كل منطقة تابعة لإقليم (Region). المناطق تربط بالموظفين عبر EmployeeTerritories لتحديد نطاق عمل كل موظف."
+  business_name_ar: "المناطق البيعية"
+  primary_key:
+  - TerritoryID
+  important_columns:
+  - name: TerritoryID
+    business_description: "معرف المنطقة الفريد - نص حتى 20 حرف"
+    business_name_ar: "رقم المنطقة"
+  - name: TerritoryDescription
+    business_description: "وصف/اسم المنطقة البيعية"
+    business_name_ar: "وصف المنطقة"
+  - name: RegionID
+    business_description: "رقم الإقليم - FK يشير لـ Region. المنطقة تتبع لإقليم واحد"
+    business_name_ar: "رقم الإقليم"
+  sensitive_columns: []
+  date_columns: []
+  status_columns: []
+  relationships:
+  - target: Region
+    type: many_to_one
+    via: RegionID
+    description: "كل منطقة تتبع لإقليم واحد. JOIN: Territories.RegionID = Region.RegionID"
+  - target: EmployeeTerritories
+    type: one_to_many
+    via: TerritoryID
+    description: "كل منطقة يمكن أن يغطيها عدة موظفين"
+  common_filters: []
+  common_joins:
+  - target: Region
+    on: "Territories.RegionID = Region.RegionID"
+    purpose: "معرفة إقليم كل منطقة"
+  common_questions:
+  - ar: "كم منطقة في كل إقليم؟"
+    en: "How many territories per region?"
+    sql_hint: "JOIN Region, GROUP BY RegionDescription, COUNT"
+  examples: []
+  confidence: high
+
+- name: Region
+  schema: dbo
+  business_description: "جدول الأقاليم - يحتوي التقسيمات الإقليمية الرئيسية. كل إقليم يحتوي عدة مناطق بيعية (Territories). البيانات ثابتة ونادراً ما تتغير."
+  business_name_ar: "الأقاليم"
+  primary_key:
+  - RegionID
+  important_columns:
+  - name: RegionID
+    business_description: "معرف الإقليم الفريد"
+    business_name_ar: "رقم الإقليم"
+  - name: RegionDescription
+    business_description: "وصف/اسم الإقليم (مثل: Eastern, Western, Northern, Southern)"
+    business_name_ar: "وصف الإقليم"
+  sensitive_columns: []
+  date_columns: []
+  status_columns: []
+  relationships:
+  - target: Territories
+    type: one_to_many
+    via: RegionID
+    description: "كل إقليم يحتوي عدة مناطق. JOIN: Region.RegionID = Territories.RegionID"
+  common_filters: []
+  common_joins:
+  - target: Territories
+    on: "Region.RegionID = Territories.RegionID"
+    purpose: "ربط الإقليم بمناطقه"
+  common_questions:
+  - ar: "كم منطقة في كل إقليم؟"
+    en: "How many territories in each region?"
+    sql_hint: "JOIN Territories, GROUP BY RegionDescription, COUNT"
+  examples: []
+  confidence: high
+
+- name: EmployeeTerritories
+  schema: dbo
+  business_description: "جدول ربط الموظفين بالمناطق - جدول تقاطعي many-to-many. كل موظف يغطي عدة مناطق بيعية وكل منطقة يغطيها عدة موظفين. المفتاح الأساسي مركب."
+  business_name_ar: "مناطق الموظفين"
+  primary_key:
+  - EmployeeID
+  - TerritoryID
+  important_columns:
+  - name: EmployeeID
+    business_description: "رقم الموظف - FK يشير لـ Employees"
+    business_name_ar: "رقم الموظف"
+  - name: TerritoryID
+    business_description: "رقم المنطقة - FK يشير لـ Territories"
+    business_name_ar: "رقم المنطقة"
+  sensitive_columns: []
+  date_columns: []
+  status_columns: []
+  relationships:
+  - target: Employees
+    type: many_to_one
+    via: EmployeeID
+    description: "كل سجل يشير لموظف واحد"
+  - target: Territories
+    type: many_to_one
+    via: TerritoryID
+    description: "كل سجل يشير لمنطقة واحدة"
+  common_filters: []
+  common_joins:
+  - target: Employees
+    on: "EmployeeTerritories.EmployeeID = Employees.EmployeeID"
+    purpose: "معرفة أي موظف يغطي كل منطقة"
+  - target: Territories
+    on: "EmployeeTerritories.TerritoryID = Territories.TerritoryID"
+    purpose: "معرفة أي مناطق يغطي كل موظف"
+  common_questions:
+  - ar: "كم منطقة يغطي كل موظف؟"
+    en: "How many territories does each employee cover?"
+    sql_hint: "JOIN Employees, GROUP BY EmployeeID, COUNT"
+  examples: []
+  confidence: high
+
+# ─── جداول ثانوية (بيانات عادة فارغة) ─────────────────────────────
+
+- name: CustomerDemographics
+  schema: dbo
+  business_description: "جدول تصنيفات العملاء الديموغرافية - يحتوي أنواع تصنيفات العملاء ووصفها. يربط بالعملاء عبر CustomerCustomerDemo. البيانات عادة فارغة في Northwind."
+  business_name_ar: "تصنيفات العملاء"
+  primary_key:
+  - CustomerTypeID
+  important_columns:
+  - name: CustomerTypeID
+    business_description: "معرف نوع العميل - حتى 10 أحرف"
+    business_name_ar: "رقم نوع العميل"
+  - name: CustomerDesc
+    business_description: "وصف تصنيف العميل"
+    business_name_ar: "وصف التصنيف"
+  sensitive_columns: []
+  date_columns: []
+  status_columns: []
+  relationships:
+  - target: CustomerCustomerDemo
+    type: one_to_many
+    via: CustomerTypeID
+    description: "كل تصنيف يمكن أن يرتبط بعدة عملاء"
+  common_filters: []
+  common_joins:
+  - target: CustomerCustomerDemo
+    on: "CustomerDemographics.CustomerTypeID = CustomerCustomerDemo.CustomerTypeID"
+    purpose: "ربط التصنيف بالعملاء"
+  common_questions: []
+  examples: []
+  confidence: medium
+
+- name: CustomerCustomerDemo
+  schema: dbo
+  business_description: "جدول ربط العملاء بالتصنيفات الديموغرافية - جدول تقاطعي many-to-many. يربط العملاء بتصنيفاتهم. البيانات عادة فارغة في Northwind."
+  business_name_ar: "تصنيفات العملاء المرتبطة"
+  primary_key:
+  - CustomerID
+  - CustomerTypeID
+  important_columns:
+  - name: CustomerID
+    business_description: "رقم العميل - FK يشير لـ Customers"
+    business_name_ar: "رقم العميل"
+  - name: CustomerTypeID
+    business_description: "رقم نوع التصنيف - FK يشير لـ CustomerDemographics"
+    business_name_ar: "رقم التصنيف"
+  sensitive_columns: []
+  date_columns: []
+  status_columns: []
+  relationships:
+  - target: Customers
+    type: many_to_one
+    via: CustomerID
+    description: "كل سجل يشير لعميل واحد"
+  - target: CustomerDemographics
+    type: many_to_one
+    via: CustomerTypeID
+    description: "كل سجل يشير لتصنيف واحد"
+  common_filters: []
+  common_joins: []
+  common_questions: []
+  examples: []
+  confidence: medium

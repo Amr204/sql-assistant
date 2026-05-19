@@ -88,7 +88,14 @@ class UserResolver:
         headers = headers or {}
         if self.mode is UserResolverMode.dev:
             assert self._default_user is not None  # guaranteed by __init__
-            return self._default_user
+            groups = list(self._default_user.groups)
+            if "admin" not in groups:
+                groups.append("admin")
+            return User(
+                id=self._default_user.id,
+                email=self._default_user.email,
+                groups=tuple(groups),
+            )
         if self.mode is UserResolverMode.header:
             return self._from_headers(headers)
         if self.mode is UserResolverMode.future_oidc:  # pragma: no cover - defensive

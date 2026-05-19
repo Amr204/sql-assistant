@@ -6,9 +6,10 @@ same checks before :meth:`~vanna.core.agent.Agent.send_message` runs.
 
 from __future__ import annotations
 
+import asyncio
 import time
 import uuid
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 
 from fastapi import HTTPException, status
 from vanna.core.agent import Agent
@@ -24,10 +25,17 @@ from vai_agent.users import UserResolutionError
 class GuardedChatHandler(ChatHandler):
     """``ChatHandler`` subclass: user resolution, limits, injection, audit, then agent."""
 
-    def __init__(self, agent: Agent, settings: Settings) -> None:
+    def __init__(
+        self,
+        agent: Agent,
+        settings: Settings,
+        *,
+        disconnect_check: Callable[[], Awaitable[bool]] | None = None,
+    ) -> None:
         super().__init__(agent)
         self._settings = settings
         self._limiter = get_rate_limiter()
+        self._disconnect_check = disconnect_check
 
     def _request_id(self, request: ChatRequest) -> str:
         rid = request.request_id or str(uuid.uuid4())
@@ -54,6 +62,23 @@ class GuardedChatHandler(ChatHandler):
         request_id = self._request_id(request)
         question = request.message or ""
         started = time.perf_counter()
+        cancelled = [False]
+
+        rc_meta = dict(rc.metadata or {})
+        rc_meta["original_question"] = question
+        rc.metadata = rc_meta
+
+        if self._disconnect_check is not None and await self._disconnect_check():
+            cancelled[0] = True
+            emit_audit_record(
+                {
+                    "kind": "chat",
+                    "request_id": request_id,
+                    "decision": "cancelled",
+                    "control": "client_disconnect",
+                },
+            )
+            return
 
         try:
             user = await self.agent.user_resolver.resolve_user(rc)
@@ -150,12 +175,42 @@ class GuardedChatHandler(ChatHandler):
                 message=question,
                 conversation_id=conversation_id,
             ):
+                if cancelled[0]:
+                    break
+                if self._disconnect_check is not None and await self._disconnect_check():
+                    cancelled[0] = True
+                    rc_meta["cancelled"] = True
+                    rc.metadata = rc_meta
+                    emit_audit_record(
+                        {
+                            "kind": "chat",
+                            "request_id": request_id,
+                            "user_id": user_id,
+                            "access_groups": groups,
+                            "decision": "cancelled",
+                            "control": "client_disconnect",
+                        },
+                    )
+                    break
                 yield ChatStreamChunk.from_component(
                     component,
                     conversation_id,
                     request_id,
                 )
             stream_ok = True
+
+        except asyncio.CancelledError:
+            emit_audit_record(
+                {
+                    "kind": "chat",
+                    "request_id": request_id,
+                    "user_id": user_id,
+                    "access_groups": groups,
+                    "decision": "cancelled",
+                    "control": "asyncio_cancelled",
+                },
+            )
+            raise
 
         except HTTPException:
             raise

@@ -20,7 +20,16 @@ def test_defaults_load_without_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.app_port == 8000
     assert settings.log_level == "INFO"
     assert settings.log_format == "text"
-    assert settings.context_max_tokens == 4_000
+    assert settings.log_dir == "logs"
+    assert settings.log_file == "app.log"
+    assert settings.enable_sql_csv_exports is False
+    assert settings.enable_visualization_tools is False
+    assert settings.sql_auto_export_min_rows == 1000
+    assert settings.audit_enabled is True
+    assert settings.audit_dir == "audit"
+    assert settings.audit_file == "activity_log.xlsx"
+    assert settings.context_max_tokens == 2_500
+    assert settings.model_provider is LlmProvider.none
     assert settings.llm_provider is LlmProvider.none
     assert settings.is_dev is True
     assert settings.is_prod is False

@@ -2,7 +2,7 @@
 
 ## What `vai-prompt.txt` required (summary)
 
-- Real **Vanna 2.x** stack: `Agent`, `ToolRegistry`, persistent memory, `UserResolver`, SQL via **`RunSqlTool`** / policy gate, OpenRouter-compatible LLM, FastAPI wiring.
+- Real **Vanna 2.x** stack: `Agent`, `ToolRegistry`, persistent memory, `UserResolver`, SQL via **`RunSqlTool`** / policy gate, OpenAI-compatible LLM, FastAPI wiring.
 - No “Vanna-inspired” substitute; inspect installed package APIs.
 - Startup: profile → policies → Chroma memory → LLM → resolver → agent on `app.state.agent` (non-null when healthy).
 - **`POST /chat`**: **`GuardedChatHandler`** → **`ChatHandler.handle_poll`** / **`handle_stream`** → **`Agent.send_message`** (no manual `LlmService.send_request` / `ToolRegistry.execute` in this route).
@@ -18,14 +18,14 @@
 
 - Agent was not a `vanna.core.agent.Agent`; tools were not Vanna `Tool` / `ToolRegistry.execute`.
 - Memory was project Chroma only, not Vanna `AgentMemory`.
-- LLM path was httpx `OpenRouterChatService`, not Vanna `LlmService`.
+- LLM path was httpx `OpenAICompatibleChatService`, not Vanna `LlmService`.
 
 ## Fixes implemented
 
 1. **`pyproject.toml`**: added `vanna>=2.0.2,<3`, `openai>=1.40,<2`; pytest ignores `PydanticDeprecatedSince20` emitted by Vanna’s vendored models.
 2. **`vai_agent/vanna_integration/`**:
    - `factory.build_vanna_runtime` — **`run_sql`** + **`secure_run_sql`** `RunSqlTool` instances over **`PolicySqlRunner`**, with **`LocalFileSystem(working_directory=settings.vanna_file_storage_dir)`** for CSV exports.
-   - `openrouter_llm.build_vanna_llm_service` — **`OpenAILlmService`** with `base_url` when OpenRouter configured; else **`MockLlmService`**.
+   - `model_llm.build_vanna_llm_service` — **`OpenAILlmService`** with `base_url` when `MODEL_PROVIDER=openai_compatible`; else **`MockLlmService`**.
    - Vanna tools wrapping existing explain/search logic; SQL execution only after `SqlPolicyEngine` / `PiiPolicyEngine` in `PolicySqlRunner`.
 3. **`bootstrap.py`**: memory first, then `build_vanna_runtime`; stores **`VaiVannaRuntime`** on `app.state.agent`; readiness adds `tools_ready`, `llm_ready`; registers **`chat`** router.
 4. **`api/query.py`**: async routes using Vanna `get_schemas` / `execute`.

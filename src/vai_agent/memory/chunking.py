@@ -27,9 +27,17 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import Any
 
 from vai_agent.knowledge.profile_models import Profile
+
+
+class ChunkingStrategy(StrEnum):
+    """How profile text is split before vector indexing."""
+
+    EARLY = "early"
+    LATE = "late"
 
 
 @dataclass(frozen=True)
@@ -53,7 +61,11 @@ def _safe_slug(text: str, max_len: int = 60) -> str:
     return slug[:max_len] or "chunk"
 
 
-def chunk_profile(profile: Profile) -> list[ProfileChunk]:
+def chunk_profile(
+    profile: Profile,
+    *,
+    strategy: ChunkingStrategy = ChunkingStrategy.EARLY,
+) -> list[ProfileChunk]:
     """Convert every knowledge facet of *profile* into :class:`ProfileChunk` objects.
 
     The order of the returned list is deterministic: same profile →
@@ -69,6 +81,16 @@ def chunk_profile(profile: Profile) -> list[ProfileChunk]:
     chunks.extend(_chunk_metrics(pid, profile))
     chunks.extend(_chunk_examples(pid, profile))
     chunks.extend(_chunk_table_profiles(pid, profile))
+
+    if strategy == ChunkingStrategy.LATE:
+        chunks = [
+            ProfileChunk(
+                document=c.document,
+                id=c.id,
+                metadata={**c.metadata, "chunking_strategy": "late"},
+            )
+            for c in chunks
+        ]
 
     return chunks
 

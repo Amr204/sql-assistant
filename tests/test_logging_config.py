@@ -41,16 +41,74 @@ def test_json_formatter_emits_valid_json_with_extras() -> None:
     assert payload["user_id"] == 7
 
 
-def test_configure_logging_replaces_handlers(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_configure_logging_replaces_handlers(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     monkeypatch.setenv("LOG_FORMAT", "json")
     monkeypatch.setenv("LOG_LEVEL", "DEBUG")
-    settings = Settings(_env_file=None)  # type: ignore[call-arg]
+    log_root = tmp_path / "logs"
+    settings = Settings(  # type: ignore[call-arg]
+        _env_file=None,
+        log_dir=str(log_root),
+        log_file="app.log",
+    )
 
     configure_logging(settings)
     root = logging.getLogger()
     assert root.level == logging.DEBUG
-    handler_count_first = len(root.handlers)
-    assert handler_count_first >= 1
+    assert len(root.handlers) == 2
 
     configure_logging(settings)
-    assert len(root.handlers) == handler_count_first
+    assert len(root.handlers) == 2
+
+
+def test_file_handler_writes_json_lines(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOG_FORMAT", "text")
+    log_dir = tmp_path / "logs"
+    settings = Settings(  # type: ignore[call-arg]
+        _env_file=None,
+        log_dir=str(log_dir),
+        log_file="app.log",
+        log_format="text",
+    )
+
+    configure_logging(settings)
+
+    assert log_dir.is_dir()
+    log_path = log_dir / "app.log"
+    assert log_path.is_file()
+
+    log = logging.getLogger("vai_agent.test_file_json")
+    log.info("hello", extra={"request_id": "abc"})
+    for h in logging.getLogger().handlers:
+        h.flush()
+
+    line = log_path.read_text(encoding="utf-8").strip().splitlines()[0]
+    payload = json.loads(line)
+
+    assert payload["level"] == "INFO"
+    assert payload["message"] == "hello"
+    assert payload["logger"] == "vai_agent.test_file_json"
+    assert payload["request_id"] == "abc"
+
+
+def test_file_handler_only_records_vai_agent_loggers(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOG_FORMAT", "text")
+    log_dir = tmp_path / "logs"
+    settings = Settings(  # type: ignore[call-arg]
+        _env_file=None,
+        log_dir=str(log_dir),
+        log_file="app.log",
+        log_format="text",
+    )
+    configure_logging(settings)
+    log_path = log_dir / "app.log"
+
+    logging.getLogger("watchfiles.main").info("watchfiles-noise")
+    logging.getLogger("vai_agent.file_only_test").info("keep-this")
+    for h in logging.getLogger().handlers:
+        h.flush()
+
+    lines = [ln for ln in log_path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    assert len(lines) == 1
+    payload = json.loads(lines[0])
+    assert payload["logger"] == "vai_agent.file_only_test"
+    assert "watchfiles-noise" not in log_path.read_text()

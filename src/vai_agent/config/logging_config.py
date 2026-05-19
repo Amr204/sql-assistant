@@ -10,14 +10,20 @@ Phase 1 ships a small, dependency-free logging setup based on the stdlib
 Structured fields commonly added later (``request_id``, ``user_id``) are
 already supported: any ``extra={...}`` passed to a log call will be merged
 into the JSON output. The text formatter only renders them if present.
+
+Application logs are written to ``{log_dir}/{log_file}`` (``.log`` extension).
+The file handler always uses JSON Lines; the console uses ``LOG_FORMAT``.
+The file handler records only ``vai_agent.*`` loggers to avoid noisy
+third-party traffic (watchfiles, httpx, etc.).
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
-import logging.config
 import sys
+from pathlib import Path
 from typing import Any
 
 from vai_agent.config.settings import Settings
@@ -53,6 +59,13 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=False, default=str)
 
 
+class ProjectLogFilter(logging.Filter):
+    """Restrict file output to first-party ``vai_agent`` loggers."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.name.startswith("vai_agent")
+
+
 def configure_logging(settings: Settings) -> None:
     """Configure the root logger based on ``settings``.
 
@@ -60,23 +73,39 @@ def configure_logging(settings: Settings) -> None:
     cleared so the new configuration fully replaces the previous one.
     """
 
-    handler = logging.StreamHandler(stream=sys.stdout)
+    log_dir = Path(settings.log_dir)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / settings.log_file
 
+    console_handler = logging.StreamHandler(stream=sys.stdout)
     if settings.log_format == "json":
-        handler.setFormatter(JsonFormatter())
+        console_handler.setFormatter(JsonFormatter())
     else:
-        handler.setFormatter(
+        console_handler.setFormatter(
             logging.Formatter(
                 fmt="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
                 datefmt="%Y-%m-%d %H:%M:%S",
-            )
+            ),
         )
+
+    file_handler = logging.FileHandler(log_path, encoding="utf-8")
+    file_handler.setFormatter(JsonFormatter())
+    file_handler.addFilter(ProjectLogFilter())
 
     root = logging.getLogger()
     for existing in list(root.handlers):
         root.removeHandler(existing)
-    root.addHandler(handler)
+        with contextlib.suppress(Exception):
+            existing.flush()
+        existing.close()
+
+    root.addHandler(console_handler)
+    root.addHandler(file_handler)
     root.setLevel(settings.log_level)
 
     logging.getLogger("uvicorn.error").setLevel(settings.log_level)
-    logging.getLogger("uvicorn.access").setLevel(settings.log_level)
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("watchfiles").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+

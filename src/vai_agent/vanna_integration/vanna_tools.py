@@ -4,16 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 
-from vanna.capabilities.file_system import FileSystem
 from vanna.core.tool import Tool, ToolContext, ToolResult
-from vanna.tools.run_sql import RunSqlTool
 
 from vai_agent.knowledge.profile_models import Profile
 from vai_agent.tools.explain_schema_tool import ExplainSchemaArgs, ExplainSchemaTool
 from vai_agent.tools.profile_search_tool import ProfileSearchArgs, ProfileSearchTool
 from vai_agent.users import User as VaiUser
-from vai_agent.vanna_integration.policy_sql_runner import PolicySqlRunner
+
+logger = logging.getLogger(__name__)
 
 
 def _vai_user(ctx: ToolContext) -> VaiUser:
@@ -40,15 +40,24 @@ class ExplainSchemaVannaTool(Tool[ExplainSchemaArgs]):
         def _run() -> object:
             return self._tool.execute(args, _vai_user(context))
 
-        legacy = await asyncio.to_thread(_run)
-        payload = json.dumps(legacy.data, ensure_ascii=False, default=str)
-        return ToolResult(
-            success=legacy.success,
-            result_for_llm=payload if legacy.success else (legacy.error or "error"),
-            ui_component=None,
-            error=legacy.error,
-            metadata=dict(legacy.metadata),
-        )
+        try:
+            legacy = await asyncio.to_thread(_run)
+            payload = json.dumps(legacy.data, ensure_ascii=False, default=str)
+            return ToolResult(
+                success=legacy.success,
+                result_for_llm=payload if legacy.success else (legacy.error or "error"),
+                ui_component=None,
+                error=legacy.error,
+                metadata=dict(legacy.metadata),
+            )
+        except Exception as exc:
+            logger.error("ExplainSchemaTool failed: %s", exc, exc_info=True)
+            return ToolResult(
+                success=False,
+                result_for_llm=f"Schema lookup failed: {type(exc).__name__}",
+                result_for_user="تعذر استرجاع معلومات الجدول.",
+                error=type(exc).__name__,
+            )
 
 
 class ProfileSearchVannaTool(Tool[ProfileSearchArgs]):
@@ -70,52 +79,21 @@ class ProfileSearchVannaTool(Tool[ProfileSearchArgs]):
         def _run() -> object:
             return self._tool.execute(args, _vai_user(context))
 
-        legacy = await asyncio.to_thread(_run)
-        payload = json.dumps(legacy.data, ensure_ascii=False, default=str)
-        return ToolResult(
-            success=legacy.success,
-            result_for_llm=payload if legacy.success else (legacy.error or "error"),
-            ui_component=None,
-            error=legacy.error,
-            metadata=dict(legacy.metadata),
-        )
-
-
-def build_policy_run_sql_tool(
-    sql_runner: PolicySqlRunner,
-    *,
-    file_system: FileSystem | None = None,
-    custom_tool_name: str = "run_sql",
-    custom_tool_description: str | None = None,
-) -> RunSqlTool:
-    """Vanna :class:`~vanna.tools.run_sql.RunSqlTool` over :class:`PolicySqlRunner`."""
-
-    desc = custom_tool_description or (
-        "Execute safe read-only T-SQL SELECT queries. "
-        "This tool enforces SQL policy, table/column allowlists, "
-        "PII restrictions, row limits, timeouts, and audit logging. "
-        "Never use it for INSERT, UPDATE, DELETE, DROP, ALTER, EXEC, or SELECT *."
-    )
-    return RunSqlTool(
-        sql_runner,
-        file_system=file_system,
-        custom_tool_name=custom_tool_name,
-        custom_tool_description=desc,
-    )
-
-
-def build_secure_run_sql_tool(
-    sql_runner: PolicySqlRunner,
-    *,
-    file_system: FileSystem | None = None,
-) -> RunSqlTool:
-    """Build the legacy ``secure_run_sql`` tool name (alias of :func:`build_policy_run_sql_tool`)."""
-
-    return build_policy_run_sql_tool(
-        sql_runner,
-        file_system=file_system,
-        custom_tool_name="secure_run_sql",
-        custom_tool_description=(
-            "Alias for run_sql. Secure SELECT-only SQL execution against SQL Server."
-        ),
-    )
+        try:
+            legacy = await asyncio.to_thread(_run)
+            payload = json.dumps(legacy.data, ensure_ascii=False, default=str)
+            return ToolResult(
+                success=legacy.success,
+                result_for_llm=payload if legacy.success else (legacy.error or "error"),
+                ui_component=None,
+                error=legacy.error,
+                metadata=dict(legacy.metadata),
+            )
+        except Exception as exc:
+            logger.error("ProfileSearchTool failed: %s", exc, exc_info=True)
+            return ToolResult(
+                success=False,
+                result_for_llm=f"Profile search failed: {type(exc).__name__}",
+                result_for_user="تعذر البحث في ملف التعريف.",
+                error=type(exc).__name__,
+            )

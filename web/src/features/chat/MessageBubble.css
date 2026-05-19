@@ -1,0 +1,36 @@
+.bubble {
+  max-width: 720px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  margin-bottom: var(--space-3);
+  line-height: 1.45;
+}
+
+.bubble-user {
+  margin-left: auto;
+  background: rgba(0, 102, 204, 0.08);
+  border-color: rgba(0, 102, 204, 0.25);
+}
+
+.bubble-assistant {
+  margin-right: auto;
+  background: var(--color-surface-strong);
+}
+
+.bubble-meta {
+  font-size: 12px;
+  color: var(--color-muted);
+  margin-bottom: 6px;
+}
+
+.bubble-content {
+  line-height: 1.45;
+}
+
+@media (prefers-color-scheme: dark) {
+  .bubble-user {
+    background: rgba(41, 151, 255, 0.12);
+    border-color: rgba(41, 151, 255, 0.35);
+  }
+}

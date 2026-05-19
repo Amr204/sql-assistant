@@ -62,10 +62,11 @@ class ProfileSearchTool(ToolBase):
         hits.extend(self._search_metrics(needle))
         hits.extend(self._search_per_table(needle))
 
-        truncated = len(hits) > args.limit
+        total_hits = len(hits)
+        truncated = total_hits > args.limit
         hits = hits[: args.limit]
         return self._ok(
-            {"query": args.query, "hits": hits, "total_hits": len(hits)},
+            {"query": args.query, "hits": hits, "total_hits": total_hits},
             truncated=truncated,
         )
 

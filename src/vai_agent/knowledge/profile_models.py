@@ -23,7 +23,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class _ProfileBase(BaseModel):
@@ -103,6 +103,8 @@ class ProfileMeta(_ProfileBase):
     hard_row_limit: int = Field(default=10_000, ge=1)
     timezone: str = "UTC"
     language_settings: LanguageSettings = Field(default_factory=LanguageSettings)
+    description_ar: str | None = None
+    description_en: str | None = None
     created_at: datetime | None = None
     generated_from: str | None = None
 
@@ -489,15 +491,61 @@ class SqlStyle(_ProfileBase):
 # ---------------------------------------------------------------------------
 
 
+def _stringify_profile_mapping(d: dict[str, object]) -> str:
+    parts: list[str] = []
+    for k in sorted(d, key=lambda x: str(x)):
+        v = d[k]
+        if v is None:
+            continue
+        vs = str(v).strip()
+        if not vs:
+            continue
+        parts.append(f"{k}: {vs}")
+    return "; ".join(parts)
+
+
+def _normalize_profile_line_list(value: object) -> list[str]:
+    """Turn YAML list[str] | list[dict] into display strings for chunks / prompts."""
+
+    if not value:
+        return []
+    if not isinstance(value, list):
+        return []
+    out: list[str] = []
+    for item in value:
+        if isinstance(item, str):
+            s = item.strip()
+            if s:
+                out.append(s)
+        elif isinstance(item, dict):
+            line = _stringify_profile_mapping(item)
+            if line:
+                out.append(line)
+    return out
+
+
+class TableImportantColumn(_ProfileBase):
+    """Per-table column hint from ``tables.yaml`` (may include Arabic / business text)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    name: str
+    business_description: str | None = None
+    business_name_ar: str | None = None
+
+
 class TableProfile(_ProfileBase):
     name: str
     schema_name: str = Field(default="dbo", alias="schema")
     business_name_ar: str | None = None
     business_name_en: str | None = None
-    description: str | None = None
+    description: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("description", "business_description"),
+    )
     grain: str | None = None
     primary_key: list[str] = Field(default_factory=list)
-    important_columns: list[str] = Field(default_factory=list)
+    important_columns: list[TableImportantColumn] = Field(default_factory=list)
     sensitive_columns: list[str] = Field(default_factory=list)
     date_columns: list[str] = Field(default_factory=list)
     status_columns: list[str] = Field(default_factory=list)
@@ -507,6 +555,58 @@ class TableProfile(_ProfileBase):
     common_questions: list[str] = Field(default_factory=list)
     examples: list[str] = Field(default_factory=list)
     confidence: Confidence = Confidence.medium
+
+    @field_validator("status_columns", mode="before")
+    @classmethod
+    def _status_columns_from_yaml(cls, value: object) -> list[str]:
+        if not value:
+            return []
+        if not isinstance(value, list):
+            return []
+        out: list[str] = []
+        for item in value:
+            if isinstance(item, str):
+                s = item.strip()
+                if s:
+                    out.append(s)
+            elif isinstance(item, dict):
+                col = item.get("column")
+                if isinstance(col, str) and col.strip():
+                    out.append(col.strip())
+                else:
+                    line = _stringify_profile_mapping(item)
+                    if line:
+                        out.append(line)
+        return out
+
+    @field_validator("important_columns", mode="before")
+    @classmethod
+    def _important_columns_from_yaml(cls, value: object) -> list[dict[str, object]]:
+        if not value:
+            return []
+        if not isinstance(value, list):
+            return []
+        out: list[dict[str, object]] = []
+        for item in value:
+            if isinstance(item, str):
+                name = item.strip()
+                if name:
+                    out.append({"name": name})
+            elif isinstance(item, dict):
+                out.append(dict(item))
+        return out
+
+    @field_validator(
+        "relationships",
+        "common_filters",
+        "common_joins",
+        "common_questions",
+        "examples",
+        mode="before",
+    )
+    @classmethod
+    def _line_list_fields_from_yaml(cls, value: object) -> list[str]:
+        return _normalize_profile_line_list(value)
 
 
 # ---------------------------------------------------------------------------

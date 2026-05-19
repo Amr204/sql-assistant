@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from vai_agent.knowledge.profile_models import Profile
     from vai_agent.memory.memory_factory import AgentMemory
     from vai_agent.users import UserResolver
+    from vai_agent.vanna_integration.policy_sql_runner import PolicySqlRunner
 
 
 @dataclass
@@ -21,3 +22,4 @@ class VaiVannaRuntime:
     legacy_user_resolver: UserResolver
     profile: Profile
     chunk_memory: AgentMemory | None
+    policy_runner: PolicySqlRunner

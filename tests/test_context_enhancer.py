@@ -9,10 +9,10 @@ import pytest
 from vai_agent.knowledge import ProfileLoader
 from vai_agent.memory import chunk_profile, create_memory
 from vai_agent.users import User
+from vai_agent.utils.token_counter import count_tokens
 from vai_agent.vai_app.context_enhancer import (
     ContextEnhancer,
     ContextEnhancerConfig,
-    estimate_tokens,
 )
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "profiles"
@@ -60,16 +60,16 @@ def admin_user() -> User:
 
 
 # ---------------------------------------------------------------------------
-# estimate_tokens
+# count_tokens
 # ---------------------------------------------------------------------------
 
 
-class TestEstimateTokens:
+class TestCountTokens:
     def test_empty_is_zero(self) -> None:
-        assert estimate_tokens("") == 0
+        assert count_tokens("") == 0
 
     def test_short_text_at_least_one(self) -> None:
-        assert estimate_tokens("hi") >= 1
+        assert count_tokens("hi") >= 1
 
 
 # ---------------------------------------------------------------------------

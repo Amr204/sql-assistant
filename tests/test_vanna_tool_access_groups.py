@@ -16,7 +16,7 @@ FIXTURE_ROOT = __import__("pathlib").Path(__file__).parent / "fixtures" / "profi
 
 
 @pytest.mark.asyncio
-async def test_run_sql_and_secure_alias_have_non_empty_access_groups(tmp_path) -> None:
+async def test_run_sql_has_non_empty_access_groups(tmp_path) -> None:
     profile = ProfileLoader(FIXTURE_ROOT).load("sample")
     settings = Settings(  # type: ignore[call-arg]
         db_profile_id="sample",
@@ -55,7 +55,6 @@ async def test_run_sql_and_secure_alias_have_non_empty_access_groups(tmp_path) -
     schemas = await runtime.vanna.tool_registry.get_schemas(user)
     names = {s.name for s in schemas}
     assert "run_sql" in names
-    assert "secure_run_sql" in names
 
     run_sql = next(t for t in schemas if t.name == "run_sql")
     assert run_sql.access_groups

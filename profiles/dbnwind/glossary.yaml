@@ -1,13 +1,18 @@
 terms:
+  # ─── Core Business Entities ─────────────────────────────────────
   - canonical: customer
     ar:
       - عميل
       - العملاء
+      - الزبون
+      - الزبائن
+      - المشتري
     en:
       - customer
       - client
-    synonyms:
       - buyer
+    synonyms:
+      - purchaser
     maps_to:
       tables:
         - Customers
@@ -16,14 +21,22 @@ terms:
         - Customers.CompanyName
     common_phrases:
       - أكثر العملاء طلباً
+      - أفضل العملاء
       - top customers
+      - customer ranking
 
   - canonical: order
     ar:
       - طلب
       - طلبية
+      - طلبات
+      - الطلبات
+      - شراء
     en:
       - order
+      - sales order
+      - purchase
+    synonyms:
       - sales order
     maps_to:
       tables:
@@ -35,35 +48,450 @@ terms:
         - "Order Details.Quantity"
     common_phrases:
       - أحدث الطلبات
+      - عدد الطلبات
       - recent orders
+      - order count
 
   - canonical: product
     ar:
       - منتج
       - المنتجات
+      - سلعة
+      - بضاعة
     en:
       - product
       - item
+      - merchandise
+    synonyms:
+      - goods
     maps_to:
       tables:
         - Products
-        - Categories
       columns:
         - Products.ProductName
         - Products.UnitPrice
-        - Categories.CategoryName
 
   - canonical: employee
     ar:
       - موظف
       - الموظفون
+      - الموظفين
+      - عامل
+      - مندوب مبيعات
     en:
       - employee
       - staff
+      - sales rep
+    synonyms:
+      - representative
     maps_to:
       tables:
         - Employees
       columns:
         - Employees.EmployeeID
-        - Employees.LastName
         - Employees.FirstName
+        - Employees.LastName
+
+  - canonical: supplier
+    ar:
+      - مورد
+      - الموردون
+      - الموردين
+      - مزود
+      - بائع جملة
+    en:
+      - supplier
+      - vendor
+      - provider
+    synonyms:
+      - distributor
+    maps_to:
+      tables:
+        - Suppliers
+      columns:
+        - Suppliers.SupplierID
+        - Suppliers.CompanyName
+
+  - canonical: category
+    ar:
+      - فئة
+      - الفئات
+      - تصنيف
+      - صنف
+      - نوع المنتج
+    en:
+      - category
+      - classification
+      - product type
+    synonyms:
+      - group
+    maps_to:
+      tables:
+        - Categories
+      columns:
+        - Categories.CategoryName
+
+  - canonical: shipper
+    ar:
+      - شركة شحن
+      - شاحن
+      - ناقل
+      - شركة نقل
+    en:
+      - shipper
+      - carrier
+      - shipping company
+    synonyms:
+      - delivery company
+    maps_to:
+      tables:
+        - Shippers
+      columns:
+        - Shippers.CompanyName
+
+  # ─── Financial Terms ────────────────────────────────────────────
+  - canonical: revenue
+    ar:
+      - إيرادات
+      - دخل
+      - مبيعات
+      - إجمالي المبيعات
+      - إجمالي الإيرادات
+      - إجمالي الدخل
+    en:
+      - revenue
+      - sales total
+      - income
+      - total sales
+    synonyms:
+      - turnover
+    maps_to:
+      tables:
+        - "Order Details"
+      columns:
+        - "Order Details.UnitPrice"
+        - "Order Details.Quantity"
+        - "Order Details.Discount"
+    common_phrases:
+      - إجمالي الإيرادات
+      - total revenue
+      - sales amount
+
+  - canonical: freight
+    ar:
+      - شحن
+      - تكلفة الشحن
+      - مصاريف شحن
+      - نقل
+    en:
+      - freight
+      - shipping cost
+      - delivery fee
+    synonyms:
+      - shipping charge
+    maps_to:
+      tables:
+        - Orders
+      columns:
+        - Orders.Freight
+
+  - canonical: discount
+    ar:
+      - خصم
+      - تخفيض
+      - تخفيضات
+    en:
+      - discount
+      - deduction
+      - reduction
+    synonyms:
+      - markdown
+    maps_to:
+      tables:
+        - "Order Details"
+      columns:
+        - "Order Details.Discount"
+
+  - canonical: price
+    ar:
+      - سعر
+      - ثمن
+      - تكلفة
+      - سعر الوحدة
+    en:
+      - price
+      - unit price
+      - cost
+    synonyms:
+      - rate
+    maps_to:
+      tables:
+        - Products
+        - "Order Details"
+      columns:
+        - Products.UnitPrice
+        - "Order Details.UnitPrice"
+
+  # ─── Inventory Terms ────────────────────────────────────────────
+  - canonical: inventory
+    ar:
+      - مخزون
+      - مخزون متوفر
+      - كمية متوفرة
+      - بضاعة في المخزن
+    en:
+      - inventory
+      - stock
+      - in stock
+      - units in stock
+    synonyms:
+      - on hand
+    maps_to:
+      tables:
+        - Products
+      columns:
+        - Products.UnitsInStock
+        - Products.UnitsOnOrder
+        - Products.ReorderLevel
+
+  - canonical: discontinued
+    ar:
+      - متوقف
+      - منتهي
+      - غير متوفر
+      - توقف الإنتاج
+    en:
+      - discontinued
+      - inactive
+      - out of production
+    synonyms:
+      - obsolete
+    maps_to:
+      tables:
+        - Products
+      columns:
+        - Products.Discontinued
+
+  # ─── Geography Terms ────────────────────────────────────────────
+  - canonical: territory
+    ar:
+      - منطقة بيعية
+      - منطقة
+      - نطاق
+    en:
+      - territory
+      - sales territory
+      - area
+    synonyms:
+      - region
+    maps_to:
+      tables:
+        - Territories
+      columns:
+        - Territories.TerritoryDescription
+
+  - canonical: region
+    ar:
+      - إقليم
+      - أقاليم
+      - منطقة رئيسية
+    en:
+      - region
+      - territory group
+    synonyms:
+      - zone
+    maps_to:
+      tables:
+        - Region
+      columns:
+        - Region.RegionDescription
+
+  - canonical: country
+    ar:
+      - دولة
+      - بلد
+      - دول
+    en:
+      - country
+      - nation
+    synonyms: []
+    maps_to:
+      tables:
+        - Customers
+        - Suppliers
+        - Employees
+      columns:
+        - Customers.Country
+        - Suppliers.Country
+        - Employees.Country
+
+  - canonical: city
+    ar:
+      - مدينة
+      - مدن
+    en:
+      - city
+    synonyms: []
+    maps_to:
+      tables:
+        - Customers
+        - Suppliers
+        - Employees
+      columns:
+        - Customers.City
+        - Suppliers.City
+
+  # ─── Analysis Terms ─────────────────────────────────────────────
+  - canonical: ranking
+    ar:
+      - ترتيب
+      - أعلى
+      - أفضل
+      - أكثر
+      - أكبر
+      - أهم
+      - أعلى 10
+      - أفضل 10
+    en:
+      - top
+      - best
+      - highest
+      - most
+      - ranking
+      - leading
+    synonyms:
+      - number one
+    maps_to:
+      tables: []
+      columns: []
+    common_phrases:
+      - أفضل 10 عملاء
+      - أكثر المنتجات مبيعاً
+      - top 10 products
+      - best-selling
+
+  - canonical: comparison
+    ar:
+      - مقارنة
+      - مقارنة بين
+      - فرق
+      - مقابل
+    en:
+      - compare
+      - comparison
+      - versus
+      - vs
+      - difference
+    synonyms:
+      - contrast
+    maps_to:
+      tables: []
+      columns: []
+
+  - canonical: trend
+    ar:
+      - اتجاه
+      - تطور
+      - تدرج
+      - نمو
+    en:
+      - trend
+      - growth
+      - pattern
+      - over time
+    synonyms:
+      - progression
+    maps_to:
+      tables: []
+      columns: []
+    common_phrases:
+      - اتجاه المبيعات
+      - sales trend
+      - monthly trend
+
+  - canonical: total
+    ar:
+      - إجمالي
+      - مجموع
+      - كلي
+      - كامل
+    en:
+      - total
+      - sum
+      - overall
+      - grand total
+    synonyms:
+      - aggregate
+    maps_to:
+      tables: []
+      columns: []
+
+  - canonical: average
+    ar:
+      - متوسط
+      - معدل
+      - وسطي
+    en:
+      - average
+      - mean
+      - avg
+    synonyms:
+      - typical
+    maps_to:
+      tables: []
+      columns: []
+
+  - canonical: count
+    ar:
+      - عدد
+      - كم
+      - كم عدد
+      - عد
+    en:
+      - count
+      - how many
+      - number of
+    synonyms:
+      - quantity
+    maps_to:
+      tables: []
+      columns: []
+
+  - canonical: shipped
+    ar:
+      - مشحون
+      - تم شحنه
+      - شحن
+      - تسليم
+    en:
+      - shipped
+      - delivered
+      - shipping
+    synonyms:
+      - sent
+    maps_to:
+      tables:
+        - Orders
+      columns:
+        - Orders.ShippedDate
+        - Orders.ShipVia
+
+  - canonical: order_date
+    ar:
+      - تاريخ الطلب
+      - تاريخ
+      - متى
+      - في أي سنة
+      - في أي شهر
+    en:
+      - order date
+      - date
+      - when
+      - in which year
+    synonyms:
+      - purchase date
+    maps_to:
+      tables:
+        - Orders
+      columns:
+        - Orders.OrderDate

@@ -1,0 +1,18 @@
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.composer-row {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-end;
+}
+
+.composer-row .ta {
+  flex: 1;
+}
