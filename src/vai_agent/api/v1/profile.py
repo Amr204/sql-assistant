@@ -9,6 +9,7 @@ router = APIRouter(prefix="/profile", tags=["profile"])
 
 @router.get("", response_model=ProfileResponse)
 def get_profile(request: Request) -> ProfileResponse:
+    """Return profile."""
     profile = getattr(request.app.state, "profile", None)
     if profile is None:
         raise HTTPException(

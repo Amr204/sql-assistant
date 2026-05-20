@@ -43,6 +43,7 @@ class RetryLlmService(LlmService):
         self._max_attempts = max_attempts
 
     async def send_request(self, request: LlmRequest) -> LlmResponse:
+        """Send request."""
         retrying = AsyncRetrying(
             stop=stop_after_attempt(self._max_attempts),
             wait=wait_exponential_jitter(initial=1, max=10, jitter=2),
@@ -90,4 +91,5 @@ class RetryLlmService(LlmService):
             raise last_exc
 
     async def validate_tools(self, tools: list[Any]) -> list[str]:
+        """Validate tools."""
         return await self._inner.validate_tools(tools)

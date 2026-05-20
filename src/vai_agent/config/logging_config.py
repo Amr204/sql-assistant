@@ -46,6 +46,7 @@ class JsonFormatter(logging.Formatter):
     """Minimal JSON log formatter. One record per line."""
 
     def format(self, record: logging.LogRecord) -> str:
+        """Format a log record as a single JSON line."""
         payload: dict[str, Any] = {
             "timestamp": self.formatTime(record, "%Y-%m-%dT%H:%M:%S%z"),
             "level": record.levelname,
@@ -67,6 +68,7 @@ class ProjectLogFilter(logging.Filter):
     """Restrict file output to first-party ``vai_agent`` loggers."""
 
     def filter(self, record: logging.LogRecord) -> bool:
+        """Return True when the record should be written to the file handler."""
         return record.name.startswith("vai_agent")
 
 

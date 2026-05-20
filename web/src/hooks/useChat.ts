@@ -1,3 +1,9 @@
+/**
+ * Chat send/clear state with request-generation guards.
+ *
+ * Prevents stale HTTP responses from updating UI after a newer send or clear.
+ * Cancellation (AbortError) is silent; real API errors surface in `error`.
+ */
 import { useCallback, useRef, useState } from "react";
 import { isRequestAborted } from "../api/abort";
 import { sendChatMessage } from "../api/chat";
@@ -23,6 +29,7 @@ function mapResponseToMessage(res: Awaited<ReturnType<typeof sendChatMessage>>):
   };
 }
 
+/** Chat state: persisted messages, send/clear, busy flag, and last error. */
 export function useChat() {
   const [messages, setMessages] = usePersistedChat();
   const [busy, setBusy] = useState(false);

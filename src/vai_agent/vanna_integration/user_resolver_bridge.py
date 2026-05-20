@@ -18,6 +18,7 @@ class LegacyUserResolverBridge(UserResolver):
         self._inner = inner
 
     async def resolve_user(self, request_context: RequestContext) -> VannaUser:
+        """Resolve user."""
         headers = {str(k): str(v) for k, v in request_context.headers.items()}
 
         def _resolve() -> object:

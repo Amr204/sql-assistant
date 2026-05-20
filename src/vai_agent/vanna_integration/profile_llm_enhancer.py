@@ -80,6 +80,7 @@ class ProfileLlmContextEnhancer(LlmContextEnhancer):
     async def enhance_system_prompt(
         self, system_prompt: str, user_message: str, user: VannaUser
     ) -> str:
+        """Enhance system prompt."""
         vai_user = VaiUser(
             id=user.id,
             email=user.email,
@@ -103,4 +104,5 @@ class ProfileLlmContextEnhancer(LlmContextEnhancer):
     async def enhance_user_messages(
         self, messages: list[LlmMessage], user: VannaUser
     ) -> list[LlmMessage]:
+        """Enhance user messages."""
         return messages

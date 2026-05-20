@@ -42,12 +42,14 @@ class _ProfileBase(BaseModel):
 
 
 class Confidence(StrEnum):
+    """Confidence."""
     high = "high"
     medium = "medium"
     low = "low"
 
 
 class Cardinality(StrEnum):
+    """Cardinality."""
     one_to_one = "one_to_one"
     one_to_many = "one_to_many"
     many_to_one = "many_to_one"
@@ -55,6 +57,7 @@ class Cardinality(StrEnum):
 
 
 class JoinType(StrEnum):
+    """JoinType."""
     inner = "inner"
     left = "left"
     right = "right"
@@ -62,11 +65,13 @@ class JoinType(StrEnum):
 
 
 class RelationshipKind(StrEnum):
+    """RelationshipKind."""
     foreign_key = "foreign_key"
     inferred = "inferred"
 
 
 class Difficulty(StrEnum):
+    """Difficulty."""
     simple = "simple"
     medium = "medium"
     advanced = "advanced"
@@ -76,6 +81,7 @@ class Difficulty(StrEnum):
 
 
 class MaskType(StrEnum):
+    """MaskType."""
     hash = "hash"
     partial = "partial"
     redact = "redact"
@@ -87,6 +93,7 @@ class MaskType(StrEnum):
 
 
 class LanguageSettings(_ProfileBase):
+    """LanguageSettings."""
     primary: str = "ar"
     secondary: str | None = "en"
 
@@ -124,6 +131,7 @@ class ProfileMeta(_ProfileBase):
 
 
 class Column(_ProfileBase):
+    """Column."""
     name: str
     type: str
     nullable: bool = True
@@ -132,6 +140,7 @@ class Column(_ProfileBase):
 
 
 class ForeignKeyDef(_ProfileBase):
+    """ForeignKeyDef."""
     name: str | None = None
     columns: list[str]
     references_table: str
@@ -149,17 +158,20 @@ class ForeignKeyDef(_ProfileBase):
 
 
 class IndexDef(_ProfileBase):
+    """IndexDef."""
     name: str | None = None
     columns: list[str]
     unique: bool = False
 
 
 class UniqueConstraintDef(_ProfileBase):
+    """UniqueConstraintDef."""
     name: str | None = None
     columns: list[str]
 
 
 class Table(_ProfileBase):
+    """Table."""
     name: str
     schema_name: str = Field(default="dbo", alias="schema")
     description: str | None = None
@@ -181,6 +193,7 @@ class Table(_ProfileBase):
 
 
 class View(_ProfileBase):
+    """View."""
     name: str
     schema_name: str = Field(default="dbo", alias="schema")
     columns: list[Column] = Field(default_factory=list)
@@ -188,6 +201,7 @@ class View(_ProfileBase):
 
 
 class StoredProcedure(_ProfileBase):
+    """StoredProcedure."""
     name: str
     schema_name: str = Field(default="dbo", alias="schema")
     definition: str | None = None
@@ -201,15 +215,18 @@ class DatabaseSchema(_ProfileBase):
     stored_procedures: list[StoredProcedure] = Field(default_factory=list)
 
     def table(self, name: str) -> Table | None:
+        """Table."""
         for t in self.tables:
             if t.name == name:
                 return t
         return None
 
     def has_table(self, name: str) -> bool:
+        """Return True if table."""
         return self.table(name) is not None
 
     def has_column(self, table: str, column: str) -> bool:
+        """Return True if column."""
         t = self.table(table)
         if t is None:
             return False
@@ -222,6 +239,7 @@ class DatabaseSchema(_ProfileBase):
 
 
 class Relationship(_ProfileBase):
+    """Relationship."""
     id: str
     from_table: str
     from_columns: list[str]
@@ -244,6 +262,7 @@ class Relationship(_ProfileBase):
 
 
 class RelationshipsDocument(_ProfileBase):
+    """RelationshipsDocument."""
     relationships: list[Relationship] = Field(default_factory=list)
 
 
@@ -261,6 +280,7 @@ class CodeMeaning(_ProfileBase):
 
 
 class BusinessRule(_ProfileBase):
+    """BusinessRule."""
     id: str
     description: str
     confidence: Confidence = Confidence.medium
@@ -269,6 +289,7 @@ class BusinessRule(_ProfileBase):
 
 
 class BusinessRulesDocument(_ProfileBase):
+    """BusinessRulesDocument."""
     status_meanings: list[CodeMeaning] = Field(default_factory=list)
     type_meanings: list[CodeMeaning] = Field(default_factory=list)
     rules: list[BusinessRule] = Field(default_factory=list)
@@ -280,11 +301,13 @@ class BusinessRulesDocument(_ProfileBase):
 
 
 class GlossaryMapping(_ProfileBase):
+    """GlossaryMapping."""
     tables: list[str] = Field(default_factory=list)
     columns: list[str] = Field(default_factory=list)
 
 
 class GlossaryTerm(_ProfileBase):
+    """GlossaryTerm."""
     canonical: str
     ar: list[str] = Field(default_factory=list)
     en: list[str] = Field(default_factory=list)
@@ -294,6 +317,7 @@ class GlossaryTerm(_ProfileBase):
 
 
 class GlossaryDocument(_ProfileBase):
+    """GlossaryDocument."""
     terms: list[GlossaryTerm] = Field(default_factory=list)
 
 
@@ -303,6 +327,7 @@ class GlossaryDocument(_ProfileBase):
 
 
 class Metric(_ProfileBase):
+    """Metric."""
     id: str
     name_ar: str | None = None
     name_en: str
@@ -315,6 +340,7 @@ class Metric(_ProfileBase):
 
 
 class MetricsDocument(_ProfileBase):
+    """MetricsDocument."""
     metrics: list[Metric] = Field(default_factory=list)
 
 
@@ -324,6 +350,7 @@ class MetricsDocument(_ProfileBase):
 
 
 class Example(_ProfileBase):
+    """Example."""
     id: str
     question_ar: str | None = None
     question_en: str | None = None
@@ -346,6 +373,7 @@ class Example(_ProfileBase):
 
 
 class ExamplesDocument(_ProfileBase):
+    """ExamplesDocument."""
     examples: list[Example] = Field(default_factory=list)
 
 
@@ -381,6 +409,7 @@ class EvalQuestion(_ProfileBase):
 
 
 class EvalQuestionsDocument(_ProfileBase):
+    """EvalQuestionsDocument."""
     questions: list[EvalQuestion] = Field(default_factory=list)
 
 
@@ -390,6 +419,7 @@ class EvalQuestionsDocument(_ProfileBase):
 
 
 class AccessGroup(_ProfileBase):
+    """AccessGroup."""
     name: str
     description: str | None = None
     allowed_schemas: list[str] = Field(default_factory=list)
@@ -398,12 +428,14 @@ class AccessGroup(_ProfileBase):
 
 
 class MaskingRule(_ProfileBase):
+    """MaskingRule."""
     column: str = Field(description="'Table.Column' identifier of the target column.")
     mask_type: MaskType = MaskType.redact
     applies_to_groups: list[str] = Field(default_factory=list)
 
 
 class RowFilter(_ProfileBase):
+    """RowFilter."""
     table: str
     expression: str
     applies_to_groups: list[str] = Field(default_factory=list)
@@ -471,6 +503,7 @@ class SecurityPolicy(_ProfileBase):
 
 
 class SqlStyle(_ProfileBase):
+    """SqlStyle."""
     dialect: str = "tsql"
     use_top: bool = True
     no_select_star: bool = True
@@ -535,6 +568,7 @@ class TableImportantColumn(_ProfileBase):
 
 
 class TableProfile(_ProfileBase):
+    """TableProfile."""
     name: str
     schema_name: str = Field(default="dbo", alias="schema")
     business_name_ar: str | None = None

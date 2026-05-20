@@ -28,6 +28,7 @@ RELOAD_EXCLUDES = [
 
 
 def main() -> None:
+    """Main."""
     host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", "8000"))
     env_path = REPO_ROOT / ".env"

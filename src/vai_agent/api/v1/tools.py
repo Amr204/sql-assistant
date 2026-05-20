@@ -11,6 +11,7 @@ router = APIRouter(prefix="/tools", tags=["tools"])
 
 @router.get("", response_model=ToolsListResponse)
 async def list_tools(request: Request) -> ToolsListResponse:
+    """List tools."""
     runtime = require_runtime(request)
     rc = build_request_context(request, {})
     try:

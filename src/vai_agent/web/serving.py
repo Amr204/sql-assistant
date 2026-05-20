@@ -32,11 +32,13 @@ def _is_static_asset(resource_path: str) -> bool:
 
 
 def register_web_routes(app: FastAPI, *, web_dist_dir: str = "web/dist") -> None:
+    """Register web routes."""
     dist = Path(web_dist_dir)
     index = dist / "index.html"
 
     @app.get("/", include_in_schema=False)
     async def root() -> RedirectResponse:
+        """Root."""
         return RedirectResponse(url="/app", status_code=307)
 
     if not index.exists():
@@ -44,6 +46,7 @@ def register_web_routes(app: FastAPI, *, web_dist_dir: str = "web/dist") -> None
         @app.get("/app", include_in_schema=False)
         @app.get("/app/{path:path}", include_in_schema=False)
         async def web_not_built() -> HTMLResponse:
+            """Web not built."""
             return HTMLResponse(
                 """
                 <!doctype html>
@@ -109,10 +112,12 @@ def register_web_routes(app: FastAPI, *, web_dist_dir: str = "web/dist") -> None
 
     @app.get("/app", include_in_schema=False)
     async def spa_index() -> FileResponse:
+        """Spa index."""
         return FileResponse(index)
 
     @app.get("/app/{resource_path:path}", include_in_schema=False)
     async def spa_assets(resource_path: str) -> FileResponse:
+        """Spa assets."""
         candidate = _safe_file(dist / resource_path)
         if candidate is not None and candidate.is_file():
             return FileResponse(candidate)

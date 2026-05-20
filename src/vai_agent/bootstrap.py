@@ -48,6 +48,7 @@ def _cors_origins(settings: Settings) -> list[str]:
 
 
 def setup_cors(app: FastAPI, settings: Settings) -> None:
+    """Setup cors."""
     origins = _cors_origins(settings)
     if not origins:
         return

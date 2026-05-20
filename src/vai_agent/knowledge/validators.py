@@ -31,11 +31,13 @@ _FORBIDDEN_FIRST_KEYWORDS = (
 
 
 class Severity(StrEnum):
+    """Severity."""
     error = "error"
     warning = "warning"
 
 
 class ValidationIssue(BaseModel):
+    """ValidationIssue."""
     code: str
     severity: Severity
     location: str
@@ -43,19 +45,23 @@ class ValidationIssue(BaseModel):
 
 
 class ValidationReport(BaseModel):
+    """ValidationReport."""
     profile_id: str
     issues: list[ValidationIssue] = Field(default_factory=list)
 
     @property
     def errors(self) -> list[ValidationIssue]:
+        """Errors."""
         return [i for i in self.issues if i.severity is Severity.error]
 
     @property
     def warnings(self) -> list[ValidationIssue]:
+        """Warnings."""
         return [i for i in self.issues if i.severity is Severity.warning]
 
     @property
     def ok(self) -> bool:
+        """Ok."""
         return not self.errors
 
 

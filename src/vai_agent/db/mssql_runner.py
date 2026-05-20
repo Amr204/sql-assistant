@@ -203,6 +203,7 @@ class ConnectionPool:
 
     @contextlib.contextmanager
     def get_connection(self) -> Iterator[pyodbc.Connection]:
+        """Yield a pooled pyodbc connection (context manager)."""
         with self._lock:
             conn = self._pool.pop() if self._pool else self._create()
         try:

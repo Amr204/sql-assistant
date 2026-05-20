@@ -83,6 +83,7 @@ def main(
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
 ) -> int:
+    """Main."""
     out = stdout or sys.stdout
     err = stderr or sys.stderr
 

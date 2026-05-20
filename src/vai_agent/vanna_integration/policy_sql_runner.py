@@ -306,6 +306,7 @@ class PolicySqlRunner(SqlRunner):
         )
 
     async def run_sql(self, args: RunSqlToolArgs, context: ToolContext) -> pd.DataFrame:
+        """Run sql."""
         out = await self.run_sql_structured(args, context)
         if not out.columns:
             return pd.DataFrame()

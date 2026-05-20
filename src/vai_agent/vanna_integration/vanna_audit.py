@@ -62,6 +62,7 @@ class JsonlVannaAuditLogger(AuditLogger):
     """Serialises Vanna audit events via :mod:`vai_agent.security.audit_log` (redacted)."""
 
     async def log_event(self, event: AuditEvent) -> None:
+        """Log event."""
         payload = event.model_dump(mode="json")
         safe_payload = redact_audit_payload(payload)
 
@@ -74,4 +75,5 @@ class JsonlVannaAuditLogger(AuditLogger):
         )
 
     async def query_events(self, *args: object, **kwargs: object) -> list[AuditEvent]:
+        """Query events."""
         return []

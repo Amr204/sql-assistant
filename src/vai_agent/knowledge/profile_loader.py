@@ -98,6 +98,7 @@ class ProfileLoader:
         self.profiles_root = Path(profiles_root)
 
     def profile_dir(self, profile_id: str) -> Path:
+        """Profile dir."""
         return self.profiles_root / profile_id
 
     def load(self, profile_id: str) -> Profile:

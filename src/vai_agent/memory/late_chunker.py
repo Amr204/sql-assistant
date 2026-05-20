@@ -19,6 +19,7 @@ class LateChunker:
         full_text: str,
         chunk_boundaries: list[tuple[int, int]],
     ) -> list[list[float]]:
+        """Embed and chunk."""
         try:
             token_embeddings = self._model.encode(
                 [full_text],

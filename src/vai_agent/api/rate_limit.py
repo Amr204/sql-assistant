@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class RateLimitDecision:
+    """RateLimitDecision."""
     allowed: bool
     reason: str | None = None
 
@@ -56,6 +57,7 @@ class SlidingWindowRateLimiter:
         groups: list[str],
         settings: object,
     ) -> RateLimitDecision:
+        """Return whether the request is within rate limits."""
         per_user = int(getattr(settings, "rate_limit_per_user_per_minute", 120))
         per_ip = int(getattr(settings, "rate_limit_per_ip_per_minute", 240))
         per_group = int(getattr(settings, "rate_limit_per_group_per_minute", 500))
@@ -82,6 +84,7 @@ class SlidingWindowRateLimiter:
         return RateLimitDecision(True)
 
     def try_acquire_concurrency(self, key: str, *, limit: int) -> RateLimitDecision:
+        """Increment in-flight counter; fail when at limit."""
         with self._lock:
             if self._active[key] >= limit:
                 return RateLimitDecision(False, "Concurrent request limit exceeded.")
@@ -89,6 +92,7 @@ class SlidingWindowRateLimiter:
         return RateLimitDecision(True)
 
     def release_concurrency(self, key: str) -> None:
+        """Decrement in-flight counter and prune idle keys."""
         with self._lock:
             if key not in self._active:
                 return
@@ -101,4 +105,5 @@ _LIMITER = SlidingWindowRateLimiter()
 
 
 def get_rate_limiter() -> SlidingWindowRateLimiter:
+    """Return the process-wide rate limiter singleton."""
     return _LIMITER

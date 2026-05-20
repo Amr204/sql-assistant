@@ -25,6 +25,7 @@ class MultiCollectionSearcher:
         n_results: int = 5,
         kind: str | None = None,
     ) -> list[dict[str, Any]]:
+        """Search."""
         hits = self._profile.search(query, n_results=n_results * 2, kind=kind)
         if self._vanna is not None:
             vanna_hits = self._vanna.search(query, n_results=n_results)

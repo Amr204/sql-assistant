@@ -10,6 +10,7 @@ router = APIRouter(prefix="/status", tags=["status"])
 
 @router.get("", response_model=StatusResponse)
 def get_status(request: Request) -> StatusResponse:
+    """Return status."""
     settings = get_settings()
     readiness = getattr(request.app.state, "readiness", None) or {}
     profile_ready = bool(readiness.get("profile_ready"))

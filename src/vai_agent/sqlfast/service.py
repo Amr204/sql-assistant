@@ -53,6 +53,7 @@ _NO_FALLBACK_SQL_CODES: frozenset[str] = frozenset(
 
 
 class SqlFastOutcome(StrEnum):
+    """SqlFastOutcome."""
     SUCCESS = "success"
     REJECT_UNSAFE = "reject_unsafe"
     FALLBACK_VANNA = "fallback_vanna"
@@ -60,6 +61,7 @@ class SqlFastOutcome(StrEnum):
 
 @dataclass(frozen=True)
 class SqlFastResult:
+    """SqlFastResult payload."""
     outcome: SqlFastOutcome
     response: ChatResponse | None
     phase_timings_ms: dict[str, int]
@@ -104,6 +106,7 @@ class SqlFastService:
         conversation_id: str | None,
         request_id: str,
     ) -> SqlFastResult:
+        """Run."""
         phase: dict[str, int] = {}
         profile = self._runtime.profile
 

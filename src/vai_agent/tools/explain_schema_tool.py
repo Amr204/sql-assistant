@@ -51,6 +51,7 @@ class ExplainSchemaTool(ToolBase):
         self._profile = profile
 
     def execute(self, args: BaseModel, user: User) -> ToolResult:
+        """Execute pre-validated SQL and return a safe QueryResult."""
         if not isinstance(args, ExplainSchemaArgs):  # pragma: no cover
             return self._fail("Invalid arguments.")
 

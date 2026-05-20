@@ -1,8 +1,15 @@
+/**
+ * HTTP client for the FastAPI backend.
+ *
+ * Boundary: transport only (timeouts, abort, JSON parse). Response shape validation
+ * lives in `validate.ts`. Aborted fetches propagate as `AbortError` (not user errors).
+ */
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export const CHAT_TIMEOUT_MS = 60_000;
 export const DEFAULT_TIMEOUT_MS = 10_000;
 
+/** HTTP error with status code and parsed JSON body (if any). */
 export class ApiError extends Error {
   status: number;
   payload: unknown;
@@ -35,6 +42,10 @@ export type ApiRequestOptions = RequestInit & {
   validate?: (data: unknown) => unknown;
 };
 
+/**
+ * Fetch JSON from the API with timeout and optional `validate` callback.
+ * Aborts propagate as `AbortError`; does not swallow user cancellation.
+ */
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const { timeoutMs = DEFAULT_TIMEOUT_MS, validate, signal: userSignal, ...fetchOptions } = options;
   const timeoutController = new AbortController();

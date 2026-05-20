@@ -30,6 +30,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 def extract_answer(payload: dict[str, Any]) -> str:
+    """Extract assistant text from a Vanna or legacy payload dict."""
     for key in ("answer", "message", "text", "content"):
         value = payload.get(key)
         if isinstance(value, str) and value.strip():
@@ -171,6 +172,7 @@ def _merge_wall_timings(resp: ChatResponse, *, intent_ms: int, t0: float) -> Cha
 
 @router.post("", response_model=ChatResponse)
 async def ask(body: ChatRequest, request: Request) -> ChatResponse:
+    """Handle POST /api/v1/chat (SQL fast path or guarded Vanna agent)."""
     runtime = require_runtime(request)
     settings = get_settings()
     request_id = uuid.uuid4().hex

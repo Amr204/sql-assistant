@@ -43,6 +43,7 @@ class SqlJsonPayload(BaseModel):
     @field_validator("sql", mode="before")
     @classmethod
     def strip_sql(cls, v: object) -> str | None:
+        """Strip sql."""
         if v is None:
             return None
         if not isinstance(v, str):

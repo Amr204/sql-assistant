@@ -1,3 +1,9 @@
+/**
+ * Persist chat history to localStorage with TTL and size limits.
+ *
+ * Security: stores message text and table metadata (columns, row_count) only —
+ * not full result rows. See `toStored` / `fromStored`.
+ */
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import type { ChatMessage, SqlTable } from "../api/types";
 
@@ -129,6 +135,7 @@ function persist(messages: ChatMessage[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
 }
 
+/** `useState` for messages synced to localStorage (metadata only, no row bodies). */
 export function usePersistedChat(): readonly [ChatMessage[], Dispatch<SetStateAction<ChatMessage[]>>] {
   const [messages, setMessages] = useState<ChatMessage[]>(loadMessages);
 

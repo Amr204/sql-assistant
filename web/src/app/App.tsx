@@ -1,3 +1,8 @@
+/**
+ * Application shell: layout, diagnostics fetch, tools drawer, chat page.
+ *
+ * Bootstraps status/profile with startup retry while the API is still loading in dev.
+ */
 import { useCallback, useEffect, useState } from "react";
 import { ApiError } from "../api/client";
 import { fetchProfile } from "../api/profile";

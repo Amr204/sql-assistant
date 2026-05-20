@@ -58,6 +58,7 @@ def health() -> HealthResponse:
 
 @router.get("/ready", response_model=ReadyResponse, summary="Readiness probe")
 def ready(request: Request) -> ReadyResponse | JSONResponse:
+    """Return readiness flags for profile, agent, memory, and tools."""
     readiness = getattr(request.app.state, "readiness", None) or {}
     response = ReadyResponse(
         status="ok" if readiness.get("ready") else "degraded",

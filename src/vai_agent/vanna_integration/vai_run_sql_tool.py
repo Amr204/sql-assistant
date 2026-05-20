@@ -85,16 +85,20 @@ class VaiRunSqlTool(Tool[RunSqlToolArgs]):
 
     @property
     def name(self) -> str:
+        """Name."""
         return self._tool_name
 
     @property
     def description(self) -> str:
+        """Description."""
         return self._tool_description
 
     def get_args_schema(self) -> type[RunSqlToolArgs]:
+        """Return args schema."""
         return RunSqlToolArgs
 
     async def execute(self, context: ToolContext, args: RunSqlToolArgs) -> ToolResult:
+        """Execute pre-validated SQL and return a safe QueryResult."""
         t0 = perf_counter()
         try:
             outcome = await self._policy.run_sql_structured(args, context)

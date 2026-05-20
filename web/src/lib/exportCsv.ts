@@ -1,3 +1,4 @@
+/** Download query results as a UTF-8 CSV file in the browser. */
 export function exportResultsCsv(columns: string[], rows: Record<string, unknown>[]): void {
   const header = columns.join(",");
   const body = rows.map((r) => columns.map((c) => JSON.stringify(r[c] ?? "")).join(",")).join("\n");

@@ -63,6 +63,7 @@ logger = logging.getLogger(__name__)
 
 
 class PiiViolation(BaseModel):
+    """PiiViolation."""
     model_config = ConfigDict(frozen=True)
 
     code: str
@@ -72,6 +73,7 @@ class PiiViolation(BaseModel):
 
 
 class PiiCheckResult(BaseModel):
+    """PiiCheckResult payload."""
     allowed: bool
     violations: list[PiiViolation] = Field(default_factory=list)
 

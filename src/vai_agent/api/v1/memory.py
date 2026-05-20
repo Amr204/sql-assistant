@@ -23,6 +23,7 @@ def _safe_token(profile_id: str) -> str:
 
 @router.get("", summary="Chroma memory collection counts")
 async def memory_stats(request: Request) -> dict[str, object]:
+    """Memory stats."""
     runtime = require_runtime(request)
     settings = get_settings()
     persist = str(Path(settings.chroma_persist_dir).resolve())

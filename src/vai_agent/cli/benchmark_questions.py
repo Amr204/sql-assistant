@@ -52,6 +52,7 @@ def main(
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
 ) -> int:
+    """Main."""
     out = stdout or sys.stdout
     err = stderr or sys.stderr
     args = _build_parser().parse_args(argv)

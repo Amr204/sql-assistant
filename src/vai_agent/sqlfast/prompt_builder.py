@@ -6,6 +6,7 @@ from vai_agent.vai_app.context_enhancer import EnhancementResult
 
 
 def build_sql_json_system_prompt() -> str:
+    """Build sql json system prompt."""
     return """You are a Microsoft SQL Server query generator for an analyst assistant.
 
 Output rules (strict):
@@ -51,6 +52,7 @@ Column naming:
 
 
 def build_sql_json_user_prompt(question: str, enhancement: EnhancementResult) -> str:
+    """Build sql json user prompt."""
     return (
         f"User question:\n{question}\n\n"
         f"Context (compact profile — schema, glossary, examples, security):\n"

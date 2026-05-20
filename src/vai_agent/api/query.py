@@ -76,6 +76,7 @@ class ToolDescriptor(BaseModel):
 
 
 class ToolListResponse(BaseModel):
+    """ToolListResponse payload."""
     tools: list[ToolDescriptor]
 
 
@@ -92,6 +93,7 @@ class InvokeRequest(BaseModel):
 
 @router.get("/tools", response_model=ToolListResponse, summary="List available tools")
 async def list_tools(request: Request) -> ToolListResponse:
+    """List tools."""
     runtime = require_runtime(request)
     v_user = await _resolve_v_user(runtime, request)
     schemas = await runtime.vanna.tool_registry.get_schemas(v_user)
@@ -117,6 +119,7 @@ async def invoke_tool(
     body: InvokeRequest,
     request: Request,
 ) -> ToolResult:
+    """Invoke tool."""
     runtime = require_runtime(request)
     v_user = await _resolve_v_user(runtime, request)
     settings = get_settings()

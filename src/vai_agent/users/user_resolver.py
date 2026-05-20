@@ -51,6 +51,7 @@ class User(BaseModel):
 
 
 class UserResolverMode(StrEnum):
+    """UserResolverMode."""
     dev = "dev"
     header = "header"
     future_oidc = "future_oidc"

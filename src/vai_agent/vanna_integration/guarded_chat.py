@@ -52,6 +52,7 @@ class GuardedChatHandler(ChatHandler):
         self,
         request: ChatRequest,
     ) -> AsyncGenerator[ChatStreamChunk, None]:
+        """Handle stream."""
         rc = request.request_context
         if rc is None:
             raise HTTPException(

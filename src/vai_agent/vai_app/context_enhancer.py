@@ -365,6 +365,7 @@ class ContextEnhancer:
         known_tables = {t.name for t in self._profile.database_schema.tables}
 
         def bump(table: str, amount: float) -> None:
+            """Bump."""
             if table in known_tables:
                 scores[table] = scores.get(table, 0.0) + amount
 

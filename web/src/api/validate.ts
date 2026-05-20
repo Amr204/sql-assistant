@@ -1,3 +1,9 @@
+/**
+ * Runtime validation for API responses (no Zod — keeps bundle small).
+ *
+ * Last line of defense before `ResultsTable` renders rows; malformed payloads
+ * throw or normalize to empty data instead of crashing the UI.
+ */
 import type { ChatResponse, SqlTable } from "./types";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -100,6 +106,7 @@ function parseTimings(value: unknown): Record<string, number> | null {
   return Object.keys(out).length > 0 ? out : null;
 }
 
+/** Best-effort re-parse of a table; returns null on invalid shape. */
 export function normalizeSqlTable(table: SqlTable | null | undefined): SqlTable | null {
   if (!table) {
     return null;
@@ -111,6 +118,7 @@ export function normalizeSqlTable(table: SqlTable | null | undefined): SqlTable 
   }
 }
 
+/** Parse and validate a chat API payload; throws on malformed fields. */
 export function validateChatResponse(data: unknown): ChatResponse {
   if (!isRecord(data)) {
     throw new Error("Invalid response: not an object");

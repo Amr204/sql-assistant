@@ -4,6 +4,9 @@ A Vanna-powered SQL Assistant for safe, profile-driven querying of SQL Server
 databases. Long-term goal: turn natural-language questions (Arabic / English)
 into validated, audited, read-only `SELECT` statements over a known schema.
 
+> Architecture and documentation standards: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md),
+> [`docs/CODE_DOCUMENTATION.md`](./docs/CODE_DOCUMENTATION.md).
+
 > Live phase status lives in [`PROGRESS.md`](./PROGRESS.md). The HTTP surface
 > combines **Vanna 2.x** (`vanna.core.agent.Agent`, `ToolRegistry`,
 > `ChatHandler` / `GuardedChatHandler`) with profile-driven SQL policy and a

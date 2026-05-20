@@ -125,6 +125,7 @@ def run_dev(*, api_only: bool = False) -> int:
         threading.Thread(target=_stream, args=("web", web_proc.stdout), daemon=True).start()
 
     def shutdown(*_args: object) -> None:
+        """Shutdown."""
         if web_proc is not None:
             _terminate(web_proc)
         _terminate(api_proc)
@@ -161,6 +162,7 @@ def run_dev(*, api_only: bool = False) -> int:
 
 
 def main(argv: list[str] | None = None) -> None:
+    """Main."""
     parser = argparse.ArgumentParser(description="Run SQL Assistant API + web dev server")
     parser.add_argument(
         "--api-only",

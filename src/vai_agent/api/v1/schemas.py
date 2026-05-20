@@ -44,12 +44,14 @@ def _validate_metadata_node(value: Any, *, depth: int) -> None:
 
 
 class ApiError(BaseModel):
+    """Raised when api fails."""
     code: str
     message: str
     details: dict[str, Any] = Field(default_factory=dict)
 
 
 class ChatRequest(BaseModel):
+    """ChatRequest body."""
     question: str = Field(min_length=1, max_length=20_000)
     conversation_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
@@ -75,6 +77,7 @@ class SqlTable(BaseModel):
 
 
 class ChatResponse(BaseModel):
+    """ChatResponse payload."""
     conversation_id: str | None
     request_id: str
     question: str
@@ -97,6 +100,7 @@ class ChatResponse(BaseModel):
 
 
 class StatusResponse(BaseModel):
+    """StatusResponse payload."""
     status: str
     app: str
     version: str
@@ -110,6 +114,7 @@ class StatusResponse(BaseModel):
 
 
 class ProfileResponse(BaseModel):
+    """ProfileResponse payload."""
     profile_id: str
     display_name: str
     dialect: str
@@ -118,6 +123,7 @@ class ProfileResponse(BaseModel):
 
 
 class ToolDescriptorResponse(BaseModel):
+    """ToolDescriptorResponse payload."""
     name: str
     description: str
     access_groups: list[str]
@@ -125,4 +131,5 @@ class ToolDescriptorResponse(BaseModel):
 
 
 class ToolsListResponse(BaseModel):
+    """ToolsListResponse payload."""
     tools: list[ToolDescriptorResponse]

@@ -38,6 +38,7 @@ class EnhancedChromaAgentMemory(ChromaAgentMemory):
         success: bool = True,
         metadata: dict[str, Any] | None = None,
     ) -> None:
+        """Save tool usage."""
         merged = dict(metadata or {})
         merged.setdefault("kind", "auto_learned")
         merged.setdefault("profile_id", self._profile_id)

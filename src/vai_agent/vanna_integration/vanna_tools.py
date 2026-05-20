@@ -22,21 +22,26 @@ def _vai_user(ctx: ToolContext) -> VaiUser:
 
 
 class ExplainSchemaVannaTool(Tool[ExplainSchemaArgs]):
+    """ExplainSchemaVannaTool."""
     def __init__(self, profile: Profile) -> None:
         self._tool = ExplainSchemaTool(profile)
 
     @property
     def name(self) -> str:
+        """Name."""
         return "explain_schema"
 
     @property
     def description(self) -> str:
+        """Description."""
         return self._tool.description
 
     def get_args_schema(self) -> type[ExplainSchemaArgs]:
+        """Return args schema."""
         return ExplainSchemaArgs
 
     async def execute(self, context: ToolContext, args: ExplainSchemaArgs) -> ToolResult:
+        """Execute pre-validated SQL and return a safe QueryResult."""
         def _run() -> object:
             return self._tool.execute(args, _vai_user(context))
 
@@ -61,21 +66,26 @@ class ExplainSchemaVannaTool(Tool[ExplainSchemaArgs]):
 
 
 class ProfileSearchVannaTool(Tool[ProfileSearchArgs]):
+    """ProfileSearchVannaTool."""
     def __init__(self, profile: Profile) -> None:
         self._tool = ProfileSearchTool(profile)
 
     @property
     def name(self) -> str:
+        """Name."""
         return "profile_search"
 
     @property
     def description(self) -> str:
+        """Description."""
         return self._tool.description
 
     def get_args_schema(self) -> type[ProfileSearchArgs]:
+        """Return args schema."""
         return ProfileSearchArgs
 
     async def execute(self, context: ToolContext, args: ProfileSearchArgs) -> ToolResult:
+        """Execute pre-validated SQL and return a safe QueryResult."""
         def _run() -> object:
             return self._tool.execute(args, _vai_user(context))
 

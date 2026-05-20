@@ -305,19 +305,23 @@ class Settings(BaseSettings):
 
     @property
     def effective_model_api_key(self) -> SecretStr | None:
+        """Effective model api key."""
         return self.model_api_key
 
     @property
     def effective_model_name(self) -> str:
+        """Effective model name."""
         return self.model_name.strip()
 
     @property
     def effective_model_base_url(self) -> str:
+        """Effective model base url."""
         base = self.model_base_url.strip()
         return base or _DEFAULT_MODEL_BASE_URL
 
     @property
     def effective_model_http_referer(self) -> str | None:
+        """Effective model http referer."""
         ref = (self.model_http_referer or "").strip()
         return ref or None
 
@@ -331,10 +335,12 @@ class Settings(BaseSettings):
 
     @property
     def is_dev(self) -> bool:
+        """Return True when dev."""
         return self.app_env is AppEnv.dev
 
     @property
     def is_prod(self) -> bool:
+        """Return True when prod."""
         return self.app_env is AppEnv.prod
 
     def cors_origin_list(self) -> list[str]:

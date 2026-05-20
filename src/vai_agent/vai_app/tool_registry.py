@@ -26,11 +26,13 @@ class ToolRegistry:
     # ------------------------------------------------------------------
 
     def register(self, tool: ToolBase) -> None:
+        """Register."""
         if tool.name in self._tools:
             raise ValueError(f"tool {tool.name!r} is already registered")
         self._tools[tool.name] = tool
 
     def register_all(self, tools: Iterable[ToolBase]) -> None:
+        """Register all."""
         for t in tools:
             self.register(t)
 
@@ -39,9 +41,11 @@ class ToolRegistry:
     # ------------------------------------------------------------------
 
     def get(self, name: str) -> ToolBase | None:
+        """Get."""
         return self._tools.get(name)
 
     def names(self) -> list[str]:
+        """Names."""
         return sorted(self._tools)
 
     def __contains__(self, name: object) -> bool:
@@ -71,4 +75,5 @@ class ToolRegistry:
         return any(g.lower() in user_groups for g in tool.access_groups)
 
     def list_for_user(self, user: User) -> list[ToolBase]:
+        """List for user."""
         return [t for t in self._tools.values() if self.user_can_use(t, user)]

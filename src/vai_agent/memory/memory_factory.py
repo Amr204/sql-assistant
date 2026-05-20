@@ -98,6 +98,7 @@ class AgentMemory:
 
     @property
     def collection_name(self) -> str:
+        """Collection name."""
         return self._col.name
 
     @property
