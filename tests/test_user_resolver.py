@@ -55,7 +55,12 @@ class TestDevMode:
         with pytest.raises(ValueError, match="default_user"):
             UserResolver(UserResolverMode.dev)
 
-    def test_admin_group_allowed_in_dev(self) -> None:
+    def test_dev_does_not_auto_escalate_to_admin(self) -> None:
+        default = User(id="dev", groups=("analyst",))
+        r = UserResolver(UserResolverMode.dev, default_user=default)
+        assert r.resolve().groups == ("analyst",)
+
+    def test_dev_preserves_configured_admin(self) -> None:
         default = User(id="dev", groups=("admin",))
         r = UserResolver(UserResolverMode.dev, default_user=default)
         assert "admin" in r.resolve().groups

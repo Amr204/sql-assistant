@@ -201,12 +201,13 @@ _MID_SEMICOLON_RE = re.compile(r";(?!\s*$)")
 
 
 def _has_multiple_statements(sql: str) -> bool:
-    """Detect multiple statements via AST; fall back to semicolon regex."""
+    """Detect multiple statements via AST; fail closed if parsing fails."""
     try:
         stmts = sqlglot.parse(sql, read="tsql", error_level=sqlglot.errors.ErrorLevel.WARN)
         return len([s for s in stmts if s is not None]) > 1
     except Exception:
-        return bool(_MID_SEMICOLON_RE.search(sql))
+        logger.warning("SQL parse failed in multi-statement check — blocking")
+        return True
 
 
 # ---------------------------------------------------------------------------
@@ -259,11 +260,11 @@ def _has_limit(stmt: exp.Expression) -> bool:
 
 
 def _inject_top(stmt: exp.Expression, original_sql: str, max_rows: int) -> str:
-    """Return ``original_sql`` with ``TOP max_rows`` appended after SELECT.
+    """Return T-SQL with ``TOP max_rows`` applied via the parsed SELECT AST.
 
     Skips injection for:
     * CTEs  (``WITH … SELECT …``) — CTE subqueries would receive the wrong TOP
-    * UNIONs — ambiguous which side to limit
+    * UNIONs — handled as non-Select at call site
     * Statements that already carry a TOP/LIMIT
 
     In those cases the original SQL is returned unchanged (the runner should
@@ -276,13 +277,13 @@ def _inject_top(stmt: exp.Expression, original_sql: str, max_rows: int) -> str:
     if _has_limit(stmt):
         return original_sql
 
-    # Find the position of the leading SELECT keyword (after any comments/
-    # whitespace) and insert TOP N immediately after it.
-    m = re.search(r"\bSELECT\b", original_sql, re.IGNORECASE)
-    if m is None:
+    limited = stmt.copy()
+    limited.set("limit", exp.Limit(expression=exp.Literal.number(max_rows)))
+    try:
+        return limited.sql(dialect="tsql")
+    except Exception:
+        logger.warning("TOP injection via AST failed; returning original SQL")
         return original_sql
-    pos = m.end()
-    return original_sql[:pos] + f" TOP {max_rows}" + original_sql[pos:]
 
 
 # ---------------------------------------------------------------------------

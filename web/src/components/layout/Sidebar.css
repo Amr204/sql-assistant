@@ -1,18 +1,23 @@
 .sidebar-brand {
-  font-size: 21px;
+  font-size: var(--font-size-xl);
   font-weight: 600;
-  letter-spacing: -0.02em;
+  margin-bottom: var(--space-4);
 }
 
 .sidebar-nav {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  margin-top: var(--space-4);
 }
 
 .sidebar-muted {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   color: var(--color-muted);
-  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sidebar-muted-icon {
+  vertical-align: text-top;
 }

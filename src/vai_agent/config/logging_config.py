@@ -12,7 +12,7 @@ already supported: any ``extra={...}`` passed to a log call will be merged
 into the JSON output. The text formatter only renders them if present.
 
 Application logs are written to ``{log_dir}/{log_file}`` (``.log`` extension).
-The file handler always uses JSON Lines; the console uses ``LOG_FORMAT``.
+The file handler uses JSON Lines with rotation; the console uses ``LOG_FORMAT``.
 The file handler records only ``vai_agent.*`` loggers to avoid noisy
 third-party traffic (watchfiles, httpx, etc.).
 """
@@ -23,10 +23,14 @@ import contextlib
 import json
 import logging
 import sys
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
 
 from vai_agent.config.settings import Settings
+
+_APP_LOG_MAX_BYTES = 10 * 1024 * 1024
+_APP_LOG_BACKUP_COUNT = 5
 
 _STANDARD_LOG_RECORD_ATTRS: frozenset[str] = frozenset(
     {
@@ -88,7 +92,12 @@ def configure_logging(settings: Settings) -> None:
             ),
         )
 
-    file_handler = logging.FileHandler(log_path, encoding="utf-8")
+    file_handler = RotatingFileHandler(
+        log_path,
+        maxBytes=_APP_LOG_MAX_BYTES,
+        backupCount=_APP_LOG_BACKUP_COUNT,
+        encoding="utf-8",
+    )
     file_handler.setFormatter(JsonFormatter())
     file_handler.addFilter(ProjectLogFilter())
 

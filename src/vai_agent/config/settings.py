@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 from enum import StrEnum
 from functools import lru_cache
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -122,8 +122,20 @@ class Settings(BaseSettings):
         description="Fallback user email used in dev resolver mode.",
     )
     dev_user_groups: str = Field(
-        default="admin",
-        description="Comma-separated groups used in dev resolver mode.",
+        default="analyst",
+        description=(
+            "Comma-separated groups used in dev resolver mode. "
+            "Set explicitly (e.g. admin) for local privileged testing."
+        ),
+    )
+
+    cors_origins: str = Field(
+        default="",
+        description=(
+            "Comma-separated allowed browser origins for CORS. "
+            "In dev, localhost:5173 is always included. "
+            "In staging/prod, set explicit origins (no wildcard)."
+        ),
     )
 
     sql_fast_path_enabled: bool = Field(
@@ -226,6 +238,21 @@ class Settings(BaseSettings):
             return LlmProvider.openai_compatible
         return v
 
+    @model_validator(mode="after")
+    def _validate_deployment_security(self) -> Self:
+        """Reject unsafe resolver/CORS combinations for non-dev environments."""
+
+        if self.app_env is not AppEnv.dev and self.user_resolver_mode == "dev":
+            raise ValueError(
+                "USER_RESOLVER_MODE=dev is only permitted when APP_ENV=dev. "
+                "Use header (behind a trusted proxy) or future_oidc in staging/prod."
+            )
+        if self.is_prod:
+            for origin in self.cors_origin_list():
+                if origin.strip() == "*":
+                    raise ValueError("CORS_ORIGINS must not use wildcard (*) in production.")
+        return self
+
     @model_validator(mode="before")
     @classmethod
     def _normalize_model_env(cls, data: Any) -> Any:
@@ -309,6 +336,18 @@ class Settings(BaseSettings):
     @property
     def is_prod(self) -> bool:
         return self.app_env is AppEnv.prod
+
+    def cors_origin_list(self) -> list[str]:
+        """Parse :attr:`cors_origins` into a de-duplicated list."""
+
+        seen: set[str] = set()
+        out: list[str] = []
+        for part in self.cors_origins.split(","):
+            origin = part.strip()
+            if origin and origin not in seen:
+                seen.add(origin)
+                out.append(origin)
+        return out
 
 
 @lru_cache(maxsize=1)

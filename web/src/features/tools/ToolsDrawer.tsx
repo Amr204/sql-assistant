@@ -1,7 +1,9 @@
 import { X } from "lucide-react";
+import { useEffect, useId, useRef } from "react";
 import { Button } from "../../components/ui/Button";
 import { Spinner } from "../../components/ui/Spinner";
 import type { ToolDescriptor } from "../../api/types";
+import { ui } from "../../locale/uiStrings";
 import "./ToolsDrawer.css";
 
 interface ToolsDrawerProps {
@@ -13,9 +15,35 @@ interface ToolsDrawerProps {
 }
 
 export function ToolsDrawer({ open, onClose, tools, loading, error }: ToolsDrawerProps) {
+  const titleId = useId();
+  const panelRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    panelRef.current?.focus();
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, onClose]);
+
   if (!open) {
     return null;
   }
+
   return (
     <div
       className="drawer-backdrop"
@@ -26,24 +54,41 @@ export function ToolsDrawer({ open, onClose, tools, loading, error }: ToolsDrawe
         }
       }}
     >
-      <aside className="drawer-panel" role="dialog" aria-label="Tools">
+      <aside
+        ref={panelRef}
+        className="drawer-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+      >
         <div className="drawer-head">
-          <h2 style={{ margin: 0, fontSize: 21, fontWeight: 600 }}>Tools</h2>
-          <Button type="button" variant="ghost" onClick={onClose} aria-label="Close tools">
-            <X size={18} />
+          <h2 id={titleId} className="drawer-title">
+            {ui.tools}
+          </h2>
+          <Button type="button" variant="ghost" onClick={onClose} aria-label={ui.closeTools}>
+            <X size={18} aria-hidden />
           </Button>
         </div>
         {loading && <Spinner />}
-        {error && <p style={{ color: "var(--color-danger)" }}>{error}</p>}
-        {!loading &&
-          !error &&
-          tools.map((t) => (
-            <div key={t.name} className="tool-row">
-              <div className="tool-name">{t.name}</div>
-              <div className="tool-desc">{t.description}</div>
-              <div className="tool-groups">Access: {t.access_groups.join(", ") || "—"}</div>
-            </div>
-          ))}
+        {error && (
+          <p className="text-error" role="alert">
+            {error}
+          </p>
+        )}
+        {!loading && !error && (
+          <ul className="tool-list" aria-label={ui.tools}>
+            {tools.map((t) => (
+              <li key={t.name} className="tool-row">
+                <div className="tool-name">{t.name}</div>
+                <div className="tool-desc">{t.description}</div>
+                <div className="tool-groups">
+                  {ui.toolsAccess} {t.access_groups.join(", ") || "—"}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </aside>
     </div>
   );

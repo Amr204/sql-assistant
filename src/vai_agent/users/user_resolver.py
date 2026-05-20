@@ -3,18 +3,25 @@
 Three modes, selectable via the ``USER_RESOLVER_MODE`` environment variable:
 
 ``dev``
-    Returns a fixed user constructed from ``DEV_USER_*`` env vars. The
-    user's groups may include privileged values (``admin``, …) — this
-    mode is for local development only.
+    Returns a fixed user constructed from ``DEV_USER_*`` env vars.
+    Groups are taken exactly from configuration (no automatic escalation).
+    This mode is for local development only and must not run in production.
 
 ``header``
     Reads ``X-User-Id``, ``X-User-Email`` and ``X-User-Groups`` headers,
     populated by an upstream proxy / API gateway that has already
-    authenticated the request. Privileged group names (``admin``,
-    ``superadmin``, ``root``) are **stripped** in this mode because the
-    application cannot verify the upstream's trust boundary on its own;
-    privileged access must be granted via a verified identity provider
-    (Phase-7+) — see :data:`_PROTECTED_GROUPS`.
+    authenticated the request.
+
+    **Deployment requirement:** expose this API only behind a **trusted reverse
+    proxy** that terminates user authentication, strips client-supplied identity
+    headers, and sets ``X-User-*`` from verified claims. Do **not** enable header
+    mode on an endpoint reachable directly from the public internet without that
+    proxy layer.
+
+    Privileged group names (``admin``, ``superadmin``, ``root``) are **stripped**
+    in this mode because the application cannot verify the upstream's trust
+    boundary on its own; privileged access must be granted via a verified
+    identity provider (Phase-7+) — see :data:`_PROTECTED_GROUPS`.
 
 ``future_oidc``
     Placeholder for a future JWT / OIDC implementation. Currently raises
@@ -88,14 +95,7 @@ class UserResolver:
         headers = headers or {}
         if self.mode is UserResolverMode.dev:
             assert self._default_user is not None  # guaranteed by __init__
-            groups = list(self._default_user.groups)
-            if "admin" not in groups:
-                groups.append("admin")
-            return User(
-                id=self._default_user.id,
-                email=self._default_user.email,
-                groups=tuple(groups),
-            )
+            return self._default_user
         if self.mode is UserResolverMode.header:
             return self._from_headers(headers)
         if self.mode is UserResolverMode.future_oidc:  # pragma: no cover - defensive

@@ -1,6 +1,7 @@
 import { Send } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { Textarea } from "../../components/ui/Textarea";
+import { ui } from "../../locale/uiStrings";
 import "./ChatInput.css";
 
 interface ChatInputProps {
@@ -16,7 +17,7 @@ export function ChatInput({ value, onChange, onSubmit, disabled }: ChatInputProp
       <div className="composer-row">
         <Textarea
           rows={3}
-          placeholder="Ask your database…"
+          placeholder={ui.chatPlaceholder}
           value={value}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
@@ -31,7 +32,7 @@ export function ChatInput({ value, onChange, onSubmit, disabled }: ChatInputProp
         />
         <Button type="button" disabled={disabled || !value.trim()} onClick={onSubmit}>
           <Send size={18} aria-hidden />
-          Send
+          {ui.send}
         </Button>
       </div>
     </div>

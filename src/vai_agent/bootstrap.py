@@ -7,6 +7,8 @@ tests construct fresh instances with overridden settings.
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import chromadb
@@ -30,20 +32,57 @@ from vai_agent.web.serving import register_web_routes
 logger = logging.getLogger(__name__)
 
 
+def _cors_origins(settings: Settings) -> list[str]:
+    """Resolve allowed browser origins for the current environment."""
+
+    origins: list[str] = []
+    if settings.is_dev:
+        origins.extend([
+            "http://127.0.0.1:5173",
+            "http://localhost:5173",
+        ])
+    for origin in settings.cors_origin_list():
+        if origin not in origins:
+            origins.append(origin)
+    return origins
+
+
 def setup_cors(app: FastAPI, settings: Settings) -> None:
-    if not settings.is_dev:
+    origins = _cors_origins(settings)
+    if not origins:
         return
-    origins = [
-        "http://127.0.0.1:5173",
-        "http://localhost:5173",
-    ]
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-Request-ID",
+            "X-User-Id",
+            "X-User-Email",
+            "X-User-Groups",
+        ],
     )
+
+
+async def _shutdown_runtime(app: FastAPI) -> None:
+    """Release shared HTTP and database resources."""
+
+    from vai_agent.sqlfast.sql_generator import close_sql_generator_client
+
+    await close_sql_generator_client()
+    runtime = getattr(app.state, "agent", None)
+    if runtime is not None:
+        runtime.policy_runner._runner.close()
+        logger.info("database connection pool closed")
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    yield
+    await _shutdown_runtime(app)
 
 
 def _initialise_runtime(app: FastAPI, settings: Settings) -> None:
@@ -159,6 +198,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version=__version__,
         docs_url="/docs" if not settings.is_prod else None,
         redoc_url="/redoc" if not settings.is_prod else None,
+        lifespan=_lifespan,
     )
 
     setup_cors(app, settings)

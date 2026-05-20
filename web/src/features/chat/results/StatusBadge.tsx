@@ -1,3 +1,5 @@
+import { memo, useMemo } from "react";
+import { ui } from "../../../locale/uiStrings";
 import "./ResultsPanels.css";
 
 interface StatusBadgeProps {
@@ -19,14 +21,15 @@ function formatTimings(timings: Record<string, number> | null | undefined): stri
   return parts.length ? parts.join(" · ") : null;
 }
 
-export function StatusBadge({
+export const StatusBadge = memo(function StatusBadge({
   executionMs,
   confidence,
   warningCount,
   path,
   timings,
 }: StatusBadgeProps) {
-  const timingTitle = formatTimings(timings);
+  const timingTitle = useMemo(() => formatTimings(timings), [timings]);
+
   return (
     <div className="status-row" aria-label="Response status">
       {path ? (
@@ -41,19 +44,20 @@ export function StatusBadge({
       ) : null}
       {timingTitle ? (
         <span className="status-badge" title={timingTitle}>
-          timings
+          {ui.timings}
         </span>
       ) : null}
       {confidence != null ? (
         <span className="status-badge" title="Structured-result confidence (heuristic)">
-          confidence {(confidence * 100).toFixed(0)}%
+          {ui.confidence} {(confidence * 100).toFixed(0)}%
         </span>
       ) : null}
       {warningCount > 0 ? (
         <span className="status-badge" title="Warnings from the presentation layer">
-          {warningCount} warning{warningCount === 1 ? "" : "s"}
+          {warningCount} {ui.warnings}
+          {warningCount === 1 ? "" : "ات"}
         </span>
       ) : null}
     </div>
   );
-}
+});

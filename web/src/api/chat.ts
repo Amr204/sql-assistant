@@ -1,9 +1,20 @@
-import { apiRequest } from "./client";
+import { apiRequest, CHAT_TIMEOUT_MS } from "./client";
 import type { ChatRequest, ChatResponse } from "./types";
+import { validateChatResponse } from "./validate";
 
-export function sendChatMessage(payload: ChatRequest): Promise<ChatResponse> {
+export type SendChatOptions = {
+  signal?: AbortSignal;
+};
+
+export async function sendChatMessage(
+  payload: ChatRequest,
+  options: SendChatOptions = {},
+): Promise<ChatResponse> {
   return apiRequest<ChatResponse>("/api/v1/chat", {
     method: "POST",
     body: JSON.stringify(payload),
+    signal: options.signal,
+    timeoutMs: CHAT_TIMEOUT_MS,
+    validate: validateChatResponse,
   });
 }

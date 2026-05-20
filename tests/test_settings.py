@@ -41,6 +41,7 @@ def test_env_overrides_are_applied(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("APP_ENV", "prod")
     monkeypatch.setenv("APP_PORT", "9001")
     monkeypatch.setenv("LOG_FORMAT", "json")
+    monkeypatch.setenv("USER_RESOLVER_MODE", "header")
 
     settings = Settings(_env_file=None)  # type: ignore[call-arg]
 
@@ -57,6 +58,26 @@ def test_invalid_port_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("APP_PORT", "70000")
     with pytest.raises(ValueError):
         Settings(_env_file=None)  # type: ignore[call-arg]
+
+
+def test_dev_resolver_forbidden_in_prod(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("APP_ENV", "prod")
+    monkeypatch.setenv("USER_RESOLVER_MODE", "dev")
+    with pytest.raises(ValueError, match="USER_RESOLVER_MODE=dev"):
+        Settings(_env_file=None)  # type: ignore[call-arg]
+
+
+def test_cors_wildcard_forbidden_in_prod(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("APP_ENV", "prod")
+    monkeypatch.setenv("USER_RESOLVER_MODE", "header")
+    monkeypatch.setenv("CORS_ORIGINS", "https://app.example.com,*")
+    with pytest.raises(ValueError, match="wildcard"):
+        Settings(_env_file=None)  # type: ignore[call-arg]
+
+
+def test_cors_origin_list_parses_csv() -> None:
+    settings = Settings(_env_file=None, cors_origins="https://a.com, https://b.com")  # type: ignore[call-arg]
+    assert settings.cors_origin_list() == ["https://a.com", "https://b.com"]
 
 
 def test_get_settings_is_cached() -> None:

@@ -32,6 +32,9 @@ dependencies = [
     "sentence-transformers>=3.0,<4",
 ]
 
+[project.scripts]
+sql-assistant-dev = "vai_agent.cli.dev:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.2,<9.0",

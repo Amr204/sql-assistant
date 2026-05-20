@@ -54,7 +54,7 @@ _MIN_TERM_LEN = 2
 # Relationship expansion runs only when the question suggests a join.
 _JOIN_HINTS: frozenset[str] = frozenset({
     "join", "between", "across",
-    "لكل", "مع", "بين",
+    "لكل", "بين",
 })
 
 
@@ -178,6 +178,22 @@ def _question_suggests_join(q_norm: str) -> bool:
     return any(hint in q_norm for hint in _JOIN_HINTS)
 
 
+def _table_name_in_question(table_name: str, q_norm: str) -> bool:
+    """Check if table name appears as a standalone token in the question."""
+    name_lower = table_name.lower()
+    if re.search(rf"\b{re.escape(name_lower)}\b", q_norm):
+        return True
+    idx = q_norm.find(name_lower)
+    while idx != -1:
+        before_ok = idx == 0 or not q_norm[idx - 1].isalnum()
+        after_end = idx + len(name_lower)
+        after_ok = after_end >= len(q_norm) or not q_norm[after_end].isalnum()
+        if before_ok and after_ok:
+            return True
+        idx = q_norm.find(name_lower, idx + 1)
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Context enhancer
 # ---------------------------------------------------------------------------
@@ -197,6 +213,9 @@ class ContextEnhancer:
         self._memory = memory
         self._config = config or ContextEnhancerConfig()
         self._table_by_name: dict[str, Table] = {
+            f"{t.schema_name}.{t.name}": t for t in profile.database_schema.tables
+        }
+        self._table_by_simple_name: dict[str, Table] = {
             t.name: t for t in profile.database_schema.tables
         }
 
@@ -354,8 +373,7 @@ class ContextEnhancer:
                 bump(table, 8.0)
 
         for table in self._profile.database_schema.tables:
-            name_lower = table.name.lower()
-            if re.search(rf"\b{re.escape(name_lower)}\b", q_norm):
+            if _table_name_in_question(table.name, q_norm):
                 bump(table.name, 10.0)
 
             tp = self._profile.tables.get(table.name)
@@ -618,7 +636,7 @@ class ContextEnhancer:
         return sections
 
     def _find_table(self, name: str) -> Table | None:
-        return self._table_by_name.get(name)
+        return self._table_by_name.get(name) or self._table_by_simple_name.get(name)
 
     @staticmethod
     def _format_table_schema(

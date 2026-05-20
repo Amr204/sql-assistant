@@ -390,6 +390,37 @@ class TestTopInjection:
         assert not r.allowed
         assert r.rewritten_sql is None
 
+    def test_select_distinct_gets_top(self) -> None:
+        r = _engine(max_rows=100).validate(
+            "SELECT DISTINCT CustomerID FROM dbo.Customers"
+        )
+        assert r.allowed
+        assert r.rewritten_sql is not None
+        assert "TOP 100" in r.rewritten_sql.upper()
+        assert "DISTINCT" in r.rewritten_sql.upper()
+
+    def test_select_inside_string_literal_unchanged_semantics(self) -> None:
+        r = _engine(max_rows=50).validate(
+            "SELECT 'hello SELECT' AS x FROM dbo.Customers"
+        )
+        assert r.allowed
+        assert r.rewritten_sql is not None
+        assert "'hello SELECT'" in r.rewritten_sql
+        assert "TOP 50" in r.rewritten_sql.upper()
+
+    def test_comment_before_select_still_injects_top(self) -> None:
+        r = _engine(max_rows=25).validate(
+            "/* SELECT */ SELECT CustomerID FROM dbo.Customers"
+        )
+        assert r.allowed
+        assert r.rewritten_sql is not None
+        assert "TOP 25" in r.rewritten_sql.upper()
+
+    def test_non_select_not_rewritten(self) -> None:
+        r = _ok("DELETE FROM dbo.Customers")
+        assert not r.allowed
+        assert r.rewritten_sql is None
+
 
 # ---------------------------------------------------------------------------
 # SqlPolicyViolationError raise helper

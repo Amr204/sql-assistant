@@ -34,3 +34,11 @@ def test_concurrency_second_acquire_fails_until_release() -> None:
     lim.release_concurrency(key)
     assert lim.try_acquire_concurrency(key, limit=1).allowed
     lim.release_concurrency(key)
+
+
+def test_release_removes_zero_concurrency_key() -> None:
+    lim = SlidingWindowRateLimiter()
+    key = "user:orphan"
+    assert lim.try_acquire_concurrency(key, limit=2).allowed
+    lim.release_concurrency(key)
+    assert key not in lim._active

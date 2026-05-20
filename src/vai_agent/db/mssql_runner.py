@@ -105,8 +105,8 @@ class RunnerError(Exception):
     """Raised when query execution fails.
 
     The ``safe_message`` attribute is safe to show to end users.
-    The ``debug_hint`` attribute contains a non-sensitive hint for
-    operators and is **not** for display to end users.
+    The ``debug_hint`` attribute contains only the exception class name
+    for operators and is **not** for display to end users.
     """
 
     def __init__(self, safe_message: str, debug_hint: str = "") -> None:
@@ -132,6 +132,12 @@ class RowLimitError(RunnerError):
 # -2 = HY008 (operation cancelled — matches SET QUERY_GOVERNOR_COST_LIMIT)
 _TIMEOUT_NATIVE_CODES: frozenset[int] = frozenset({0, -2})
 _TIMEOUT_SQLSTATE_RE = re.compile(r"\b(HYT00|HY008)\b", re.IGNORECASE)
+
+
+def _operator_error_hint(exc: BaseException) -> str:
+    """Return a non-sensitive hint for operators (logs only, not end users)."""
+
+    return type(exc).__name__
 
 
 def _is_timeout_error(exc: pyodbc.Error) -> bool:
@@ -183,8 +189,17 @@ class ConnectionPool:
             )
             raise RunnerError(
                 "Could not connect to the database. Please try again later.",
-                debug_hint=f"pyodbc.Error: {type(exc).__name__}: {exc!s}",
+                debug_hint=_operator_error_hint(exc),
             ) from exc
+
+    def close_all(self) -> None:
+        """Close every pooled connection (application shutdown)."""
+
+        with self._lock:
+            while self._pool:
+                conn = self._pool.pop()
+                with contextlib.suppress(Exception):
+                    conn.close()
 
     @contextlib.contextmanager
     def get_connection(self) -> Iterator[pyodbc.Connection]:
@@ -257,6 +272,14 @@ class MssqlRunner:
                     query_timeout=self._query_timeout,
                 )
             return self._pool
+
+    def close(self) -> None:
+        """Close the connection pool if it was created."""
+
+        with self._pool_lock:
+            if self._pool is not None:
+                self._pool.close_all()
+                self._pool = None
 
     def execute(
         self,
@@ -376,22 +399,22 @@ class MssqlRunner:
                 _audit_sql(
                     "error",
                     error_type=type(exc).__name__,
-                    error_message=str(exc),
+                    error_message=_operator_error_hint(exc),
                 )
                 raise QueryTimeoutError(
                     f"Query exceeded the {self._query_timeout}-second time limit.",
-                    debug_hint=f"pyodbc.Error: {type(exc).__name__}: {exc!s}",
+                    debug_hint=_operator_error_hint(exc),
                 ) from exc
 
             logger.exception("query execution error", extra={"hint": type(exc).__name__})
             _audit_sql(
                 "error",
                 error_type=type(exc).__name__,
-                error_message=str(exc),
+                error_message=_operator_error_hint(exc),
             )
             raise RunnerError(
                 "The query could not be executed. Check your query and try again.",
-                debug_hint=f"pyodbc.Error: {type(exc).__name__}: {exc!s}",
+                debug_hint=_operator_error_hint(exc),
             ) from exc
 
         except RowLimitError:
@@ -401,11 +424,11 @@ class MssqlRunner:
             _audit_sql(
                 "error",
                 error_type=type(exc).__name__,
-                error_message=str(exc),
+                error_message=_operator_error_hint(exc),
             )
             raise RunnerError(
                 "An unexpected error occurred while running the query.",
-                debug_hint=f"{type(exc).__name__}: {exc!s}",
+                debug_hint=_operator_error_hint(exc),
             ) from exc
 
 

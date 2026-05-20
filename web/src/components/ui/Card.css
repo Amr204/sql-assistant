@@ -4,9 +4,3 @@
   border-radius: var(--radius-md);
   padding: var(--space-6);
 }
-
-@media (prefers-color-scheme: dark) {
-  .card {
-    background: var(--color-surface-strong);
-  }
-}

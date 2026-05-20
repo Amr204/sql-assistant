@@ -14,10 +14,9 @@ APP_MODULE  := vai_agent.main:app
 HOST        ?= 127.0.0.1
 PORT        ?= 8000
 
-# Narrow reload scope so logs/audit/artifacts do not trigger restart loops.
-RELOAD_FLAGS := --reload --reload-dir src --reload-dir profiles --reload-exclude "logs/*" --reload-exclude "audit/*" --reload-exclude "activity_audit/*" --reload-exclude ".data/*" --reload-exclude "web/dist/*" --reload-exclude "*.xlsx" --reload-exclude "*.csv" --reload-exclude "*.jsonl"
+# Reload excludes live in vai_agent.cli.run_api (uvicorn.run; Windows-safe).
 
-.PHONY: help venv install lint format test run check clean web-install web-dev web-build web-preview run-api run-full
+.PHONY: help venv install lint format test run run-api check clean web-install web-dev web-build web-preview
 
 help:
 	@echo "Available targets:"
@@ -26,12 +25,11 @@ help:
 	@echo "  lint     Run ruff check"
 	@echo "  format   Run ruff format"
 	@echo "  test     Run pytest"
-	@echo "  run      Start the FastAPI app with uvicorn --reload"
+	@echo "  run      Start API + Vite dev (one command; open http://127.0.0.1:5173)"
+	@echo "  run-api  API only (serves web/dist at /app; rebuild UI after changes)"
 	@echo "  check    Run lint + tests (CI-equivalent)"
 	@echo "  clean    Remove caches and build artefacts"
 	@echo "  web-install / web-dev / web-build / web-preview — Vite UI under web/"
-	@echo "  run-api  Uvicorn API (uses .env if present)"
-	@echo "  run-full Reminder to run API + web dev in two terminals"
 
 web-install:
 	cd web && npm install
@@ -45,13 +43,11 @@ web-build:
 web-preview:
 	cd web && npm run preview
 
-run-api:
-	$(UVICORN) $(APP_MODULE) --env-file .env --host 127.0.0.1 --port 8000 $(RELOAD_FLAGS)
+run:
+	$(PYTHON) scripts/dev.py
 
-run-full:
-	@echo "Run API and web dev in separate terminals:"
-	@echo "make run-api"
-	@echo "make web-dev"
+run-api:
+	$(PYTHON) scripts/dev.py --api-only
 
 venv:
 	python -m venv .venv
@@ -68,9 +64,6 @@ format:
 
 test:
 	$(PYTEST)
-
-run:
-	$(UVICORN) $(APP_MODULE) --env-file .env --host $(HOST) --port $(PORT) $(RELOAD_FLAGS)
 
 check: lint test
 

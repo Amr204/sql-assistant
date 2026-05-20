@@ -1,17 +1,23 @@
-"""Makefile reload flags for uvicorn."""
+"""Dev server reload settings (Windows-safe via uvicorn.run)."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 
-def test_run_api_includes_reload_dirs_and_excludes() -> None:
-    text = (Path(__file__).resolve().parents[1] / "Makefile").read_text(encoding="utf-8")
-    assert "--reload-dir src" in text
-    assert "--reload-dir profiles" in text
-    assert "logs/*" in text
-    assert "activity_audit" in text
-    assert "run-api:" in text
-    assert "$(RELOAD_FLAGS)" in text
-    assert "run:" in text
-    assert text.count("$(RELOAD_FLAGS)") >= 2
+def test_run_api_module_defines_reload_dirs_and_excludes() -> None:
+    text = (Path(__file__).resolve().parents[1] / "src/vai_agent/cli/run_api.py").read_text(
+        encoding="utf-8"
+    )
+    assert 'RELOAD_DIRS = ["src", "profiles"]' in text
+    assert '"logs/*"' in text
+    assert '"activity_audit/*"' in text
+    assert "uvicorn.run(" in text
+
+
+def test_dev_launches_run_api_module_not_uvicorn_cli() -> None:
+    text = (Path(__file__).resolve().parents[1] / "src/vai_agent/cli/dev.py").read_text(
+        encoding="utf-8"
+    )
+    assert '"-m", "vai_agent.cli.run_api"' in text
+    assert "--reload-exclude" not in text

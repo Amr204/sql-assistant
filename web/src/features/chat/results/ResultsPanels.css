@@ -6,6 +6,33 @@
   background: var(--color-surface);
 }
 
+.result-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.result-card-header .result-card-title {
+  margin: 0;
+}
+
+.export-btn {
+  font-size: var(--font-size-sm);
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-strong);
+  cursor: pointer;
+}
+
+.result-meta {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-muted);
+}
+
 .result-card-title {
   margin: 0 0 var(--space-2);
   font-size: 12px;

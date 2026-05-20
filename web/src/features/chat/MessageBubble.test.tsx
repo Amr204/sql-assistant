@@ -50,7 +50,7 @@ describe("MessageBubble", () => {
         }}
       />,
     );
-    expect(screen.getByText("Generated SQL")).toBeInTheDocument();
+    expect(screen.getByText("SQL المُولَّد")).toBeInTheDocument();
     expect(screen.queryByRole("columnheader")).not.toBeInTheDocument();
   });
 

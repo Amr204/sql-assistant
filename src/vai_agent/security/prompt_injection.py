@@ -1,7 +1,8 @@
 """Lightweight prompt-injection / instruction-override heuristics.
 
-This is not a substitute for model-level safety; it blocks obvious
-attempts to override system behaviour before they reach the LLM or tools.
+This is not a substitute for model-level safety or :class:`~vai_agent.security.sql_policy.SqlPolicyEngine`;
+it blocks obvious attempts to override system behaviour before they reach the LLM or tools.
+SQL execution remains gated by policy regardless of this check.
 """
 
 from __future__ import annotations
@@ -12,11 +13,18 @@ from dataclasses import dataclass
 _BLOCKED = re.compile(
     r"(?is)\b("
     r"ignore\s+(all\s+)?(previous|prior)\s+instructions?"
+    r"|disregard\s+(all\s+)?(previous|prior)\s+instructions?"
     r"|system\s*:\s*"
-    r"you\s+are\s+now"
-    r"|forget\s+(everything|all)"
+    r"|assistant\s*:\s*"
+    r"|you\s+are\s+now"
+    r"|forget\s+(everything|all|your)"
+    r"|new\s+instructions?\s*:"
+    r"|override\s+(the\s+)?(system|safety)"
+    r"|jailbreak"
+    r"|do\s+anything\s+now"
     r"|<\s*script"
     r"|javascript\s*:"
+    r"|data\s*:\s*text/html"
     r")\b"
 )
 

@@ -85,7 +85,7 @@ def dev_runtime(sample_profile, tmp_path):
         profiles_root=str(FIXTURE_ROOT),
         user_resolver_mode="dev",
         dev_user_id="dev",
-        dev_user_groups="analyst",
+        dev_user_groups="analyst,admin",
         llm_provider="none",
         chroma_persist_dir=str(tmp_path / "c1"),
         _env_file=None,

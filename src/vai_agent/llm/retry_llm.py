@@ -61,6 +61,13 @@ class RetryLlmService(LlmService):
         raise RuntimeError("unreachable")  # pragma: no cover
 
     async def stream_request(self, request: LlmRequest) -> AsyncGenerator[LlmStreamChunk, None]:
+        """Stream response with single-attempt fallback.
+
+        Note: Unlike ``send_request``, streaming does NOT use exponential backoff
+        because partially-yielded chunks cannot be rolled back. The consumer must
+        handle potential duplicate content if the primary fails mid-stream and the
+        fallback is invoked.
+        """
         last_exc: BaseException | None = None
         try:
             async for chunk in self._inner.stream_request(request):

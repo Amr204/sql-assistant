@@ -12,6 +12,7 @@ import json
 import logging
 import time
 import uuid
+from logging.handlers import RotatingFileHandler
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,8 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 _DEFAULT_PATH = Path(".data") / "audit" / "audit.jsonl"
+_AUDIT_MAX_BYTES = 20 * 1024 * 1024
+_AUDIT_BACKUP_COUNT = 10
 
 
 def sql_fingerprint(sql: str) -> str:
@@ -44,11 +47,36 @@ def emit_audit_record(
     _ensure_parent(target)
     line = json.dumps(row, ensure_ascii=False, default=str) + "\n"
     try:
-        with target.open("a", encoding="utf-8") as fh:
-            fh.write(line)
+        _append_audit_line(target, line)
     except OSError as exc:
         logger.warning("audit write failed", extra={"exc_type": type(exc).__name__})
     return audit_id
+
+
+def _audit_logger_for(path: Path) -> logging.Logger:
+    """Return a dedicated logger with a rotating handler for *path*."""
+
+    key = str(path.resolve())
+    audit_logger = logging.getLogger(f"vai_agent.audit.jsonl.{key}")
+    if not audit_logger.handlers:
+        handler = RotatingFileHandler(
+            key,
+            maxBytes=_AUDIT_MAX_BYTES,
+            backupCount=_AUDIT_BACKUP_COUNT,
+            encoding="utf-8",
+        )
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        audit_logger.addHandler(handler)
+        audit_logger.propagate = False
+        audit_logger.setLevel(logging.INFO)
+    return audit_logger
+
+
+def _append_audit_line(path: Path, line: str) -> None:
+    """Append one JSON line via a rotating file handler."""
+
+    _ensure_parent(path)
+    _audit_logger_for(path).info(line.rstrip("\n"))
 
 
 def emit_tool_audit(

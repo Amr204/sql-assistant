@@ -2,8 +2,33 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+
+_STATIC_EXTENSIONS = frozenset({
+    ".js",
+    ".mjs",
+    ".css",
+    ".map",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".ico",
+    ".woff",
+    ".woff2",
+    ".ttf",
+    ".eot",
+    ".json",
+    ".wasm",
+    ".txt",
+})
+
+
+def _is_static_asset(resource_path: str) -> bool:
+    return Path(resource_path).suffix.lower() in _STATIC_EXTENSIONS
 
 
 def register_web_routes(app: FastAPI, *, web_dist_dir: str = "web/dist") -> None:
@@ -91,4 +116,6 @@ def register_web_routes(app: FastAPI, *, web_dist_dir: str = "web/dist") -> None
         candidate = _safe_file(dist / resource_path)
         if candidate is not None and candidate.is_file():
             return FileResponse(candidate)
+        if _is_static_asset(resource_path):
+            raise HTTPException(status_code=404, detail="Static asset not found")
         return FileResponse(index)

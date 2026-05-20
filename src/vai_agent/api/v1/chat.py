@@ -20,6 +20,7 @@ from vai_agent.presentation.sql_result_presenter import (
     clean_assistant_text,
     present_sql_result,
 )
+from vai_agent.security.prompt_injection import check_prompt_injection
 from vai_agent.sqlfast.intent_router import ChatPath, route_intent
 from vai_agent.sqlfast.service import SqlFastOutcome, SqlFastService
 from vai_agent.users import UserResolutionError
@@ -177,6 +178,17 @@ async def ask(body: ChatRequest, request: Request) -> ChatResponse:
     recorder = get_activity_recorder()
     profile_id = runtime.profile.meta.profile_id
     db_name = runtime.profile.meta.database_name
+
+    injection = check_prompt_injection(body.question)
+    if not injection.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "PROMPT_REJECTED",
+                "message": "The question was rejected by safety checks.",
+                "reason": injection.reason,
+            },
+        )
 
     metadata = {
         **body.metadata,

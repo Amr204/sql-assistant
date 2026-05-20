@@ -1,26 +1,28 @@
+import { memo } from "react";
 import { Badge } from "../../components/ui/Badge";
 import { Spinner } from "../../components/ui/Spinner";
 import type { StatusResponse } from "../../api/types";
+import { ui } from "../../locale/uiStrings";
 
 interface StatusPillProps {
   status: StatusResponse | null;
   error: string | null;
 }
 
-export function StatusPill({ status, error }: StatusPillProps) {
+export const StatusPill = memo(function StatusPill({ status, error }: StatusPillProps) {
   if (error) {
     return (
       <Badge tone="err" title={error}>
-        Agent Status: error
+        {ui.agentStatus}: {ui.agentError}
       </Badge>
     );
   }
   if (!status) {
     return (
       <Badge>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+        <span className="status-pill-loading">
           <Spinner />
-          Agent Status: loading
+          {ui.agentStatus}: {ui.agentLoading}
         </span>
       </Badge>
     );
@@ -28,7 +30,7 @@ export function StatusPill({ status, error }: StatusPillProps) {
   const tone = status.status === "ok" ? "ok" : "warn";
   return (
     <Badge tone={tone}>
-      Agent Status: {status.status === "ok" ? "ready" : "degraded"}
+      {ui.agentStatus}: {status.status === "ok" ? ui.agentReady : ui.agentDegraded}
     </Badge>
   );
-}
+});

@@ -41,8 +41,28 @@ This document describes the effective runtime security controls in Phase 10.
 
 ## Recommended Production Setup
 
+- **Never commit `.env`** — copy from `.env.example` and keep secrets out of git
 - Use dedicated SQL read-only account in `.env` (`DB_USERNAME`/`DB_PASSWORD`)
 - Keep `DB_TRUST_SERVER_CERTIFICATE=false` in production
-- Set `USER_RESOLVER_MODE=header` behind trusted gateway
+- **`APP_ENV=prod` or `staging`** — startup rejects `USER_RESOLVER_MODE=dev`
+- Set `USER_RESOLVER_MODE=header` **only behind a trusted reverse proxy** that strips
+  spoofed `X-User-*` headers and sets identity from verified authentication. Do not
+  expose header mode directly to the public internet. The API never grants `admin` /
+  `superadmin` / `root` from raw headers.
+- Chat requests are checked for obvious prompt-injection patterns; **SQL policy remains
+  the execution barrier** regardless of prompt heuristics.
+- Set `CORS_ORIGINS` to explicit HTTPS origins (no `*` wildcard in production)
 - Restrict network path from API host to SQL Server
 - Enable centralized log shipping for policy violations and query audits
+
+## Local development vs production
+
+| Setting | Local (`APP_ENV=dev`) | Production / staging |
+|--------|------------------------|----------------------|
+| `USER_RESOLVER_MODE` | `dev` (fixed user from `DEV_USER_*`) | `header` (or future OIDC) |
+| `DEV_USER_GROUPS` | e.g. `analyst` or `admin` for testing | N/A (dev mode blocked) |
+| `CORS_ORIGINS` | Optional; localhost:5173 always allowed | Required explicit origins |
+| API docs | `/docs` enabled | Disabled when `APP_ENV=prod` |
+
+Run locally: configure `.env`, start API (`make dev` or `uvicorn`), start web UI on port 5173.
+Run production: set `APP_ENV=prod`, non-dev resolver, `CORS_ORIGINS`, and read-only DB credentials.

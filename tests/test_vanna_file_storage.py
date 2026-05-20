@@ -10,5 +10,5 @@ def test_vanna_file_storage_default_under_dot_data() -> None:
     assert s.vanna_file_storage_dir.startswith(".data/")
     assert "vanna_files" in s.vanna_file_storage_dir
 
-
 # Legacy CSV export path removed from factory; settings key kept for compatibility.
+

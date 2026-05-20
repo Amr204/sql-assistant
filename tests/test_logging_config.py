@@ -7,6 +7,8 @@ import logging
 
 import pytest
 
+from logging.handlers import RotatingFileHandler
+
 from vai_agent.config.logging_config import JsonFormatter, configure_logging
 from vai_agent.config.settings import Settings
 
@@ -55,6 +57,8 @@ def test_configure_logging_replaces_handlers(monkeypatch: pytest.MonkeyPatch, tm
     root = logging.getLogger()
     assert root.level == logging.DEBUG
     assert len(root.handlers) == 2
+    file_handlers = [h for h in root.handlers if isinstance(h, RotatingFileHandler)]
+    assert len(file_handlers) == 1
 
     configure_logging(settings)
     assert len(root.handlers) == 2

@@ -115,14 +115,26 @@ pytest
 
 Equivalent: `make check`.
 
-### 5. Start the API
+### 5. Start the app (API + UI)
+
+**Development (one command, hot-reload UI):**
 
 ```bash
-uvicorn vai_agent.main:app --reload
+python scripts/dev.py
 ```
 
-Equivalent: `make run` (binds `127.0.0.1:8000` by default; override `HOST` /
-`PORT` in the Makefile invocation if needed).
+Equivalent: `make run` after `pip install -e ".[dev]"` and `cd web && npm install`.
+
+Open **`http://127.0.0.1:5173`** — Vite serves the React app and proxies `/api`,
+`/health`, and `/ready` to the API on port 8000. Press Ctrl+C to stop both processes.
+
+**API only** (serves a pre-built UI from `web/dist` at `/app`; run `cd web && npm run build` after UI changes):
+
+```bash
+python scripts/dev.py --api-only
+```
+
+Equivalent: `make run-api` or `python -m vai_agent.cli.run_api`.
 
 ### 6. Verify
 
@@ -154,8 +166,11 @@ Sample **`GET /health`** body:
 Agent tooling: **`GET /agent/tools`**,
 **`POST /agent/tools/{tool_name}/invoke`** (rate-limited; requires a working SQL Server connection).
 
-**Official web UI:** **`GET /app`** (Vite build from `web/`, or a minimal “not built” page when `web/dist` is absent).
-**`GET /`** redirects to **`/app`**.
+**Official web UI (production / API-only):** **`GET /app`** (static build from `web/dist`, or a
+minimal “not built” page when `web/dist` is absent). **`GET /`** redirects to **`/app`**.
+
+**Development:** use **`http://127.0.0.1:5173`** via `python scripts/dev.py` (not `/app` on :8000)
+so the UI hot-reloads without rebuilding `web/dist`.
 
 **`POST /api/v1/chat`** is the versioned UI/API entry point: it uses **`GuardedChatHandler`**
 (subclass of Vanna **`ChatHandler`**) so rate limits, concurrency, prompt-injection checks, and audit
@@ -189,11 +204,11 @@ make install   # install deps into .venv
 make lint      # ruff check
 make test      # pytest
 make check     # lint + test (CI-equivalent)
-make run       # uvicorn with reload
+make run         # API + Vite dev (one command)
+make run-api     # API only; UI from web/dist at /app
 make web-install
-make web-dev   # Vite dev server (proxies /api to :8000)
-make web-build # production bundle → web/dist
-make run-api   # uvicorn with .env on 127.0.0.1:8000
+make web-dev     # Vite only (if you need the UI process alone)
+make web-build   # production bundle → web/dist
 ```
 
 ## Without `make`
@@ -205,7 +220,7 @@ so any of the following work as drop-in replacements (PowerShell shown):
 .\.venv\Scripts\pip.exe install -e ".[dev]"
 .\.venv\Scripts\ruff.exe check .
 .\.venv\Scripts\pytest.exe
-.\.venv\Scripts\uvicorn.exe vai_agent.main:app --reload
+.\.venv\Scripts\python.exe scripts\dev.py
 ```
 
 ---
@@ -269,6 +284,10 @@ Primary keys mirror [`.env.example`](./.env.example):
 | `DB_PROFILE_ID`    | `dbnwind`           | Subdirectory under `PROFILES_ROOT`         |
 | `CHROMA_PERSIST_DIR` | `.data/chroma`    | Persistent vector storage                  |
 | `MODEL_PROVIDER`   | `none` / `openai_compatible` | Configures **Vanna** `llm_service` on `app.state.agent` |
+
+See [SECURITY.md](./SECURITY.md) for production hardening (never commit `.env`,
+forbid `USER_RESOLVER_MODE=dev` outside `APP_ENV=dev`, header auth behind a
+trusted proxy, and `CORS_ORIGINS`).
 
 See `.env.example` for the full annotated list (`USER_RESOLVER_MODE`,
 `CONTEXT_MAX_TOKENS`, model base URL/timeouts, etc.).

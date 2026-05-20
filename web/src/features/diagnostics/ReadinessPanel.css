@@ -1,0 +1,27 @@
+.readiness-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.readiness-row {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-md);
+}
+
+.readiness-ok {
+  color: var(--color-success);
+}
+
+.readiness-bad {
+  color: var(--color-danger);
+}
+
+.readiness-errors {
+  margin-top: var(--space-3);
+  font-size: var(--font-size-sm);
+  color: var(--color-muted);
+}

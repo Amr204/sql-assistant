@@ -11,6 +11,7 @@
   display: flex;
   gap: var(--space-3);
   align-items: flex-end;
+  direction: rtl;
 }
 
 .composer-row .ta {

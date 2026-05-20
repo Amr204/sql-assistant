@@ -1,7 +1,8 @@
 import { Database, Wrench } from "lucide-react";
 import type { ProfileResponse } from "../../api/types";
-import { Button } from "../ui/Button";
 import { ProfileCard } from "../../features/profile/ProfileCard";
+import { ui } from "../../locale/uiStrings";
+import { Button } from "../ui/Button";
 import "./Sidebar.css";
 
 interface SidebarProps {
@@ -15,21 +16,21 @@ export function Sidebar({ profile, profileError, onNewChat, onOpenTools }: Sideb
   return (
     <>
       <div>
-        <div className="sidebar-brand">SQL Assistant</div>
+        <div className="sidebar-brand">{ui.appTitle}</div>
         <div className="sidebar-nav">
           <Button type="button" onClick={onNewChat}>
-            New Chat
+            {ui.newChat}
           </Button>
           <Button type="button" variant="ghost" onClick={onOpenTools}>
             <Wrench size={16} aria-hidden />
-            Tools
+            {ui.tools}
           </Button>
         </div>
       </div>
       <ProfileCard profile={profile} error={profileError} />
       <div className="sidebar-muted">
-        <Database size={14} style={{ verticalAlign: "text-top", marginRight: 6 }} aria-hidden />
-        Profile-driven answers
+        <Database size={14} className="sidebar-muted-icon" aria-hidden />
+        {ui.profileTagline}
       </div>
     </>
   );

@@ -47,6 +47,8 @@ web/node_modules/
 # Reports JSON artifacts (if generated locally)
 reports/*.json
 
+profiles/cashless
+
 # IDE
 .vscode/
 .idea/

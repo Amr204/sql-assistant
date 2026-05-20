@@ -1,6 +1,8 @@
-import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
+import { MessageList } from "./MessageList";
 import type { ChatMessage } from "../../api/types";
+import { ui } from "../../locale/uiStrings";
+import "./ChatPage.css";
 
 interface ChatPageProps {
   messages: ChatMessage[];
@@ -11,41 +13,27 @@ interface ChatPageProps {
   error: string | null;
 }
 
-export function ChatPage({
-  messages,
-  draft,
-  onDraftChange,
-  onSend,
-  busy,
-  error,
-}: ChatPageProps) {
+function ThinkingIndicator() {
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        flex: 1,
-        minHeight: 0,
-        maxHeight: "100%",
-      }}
-    >
-      <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
-        <MessageList messages={messages} />
+    <div className="thinking-indicator">
+      <div className="thinking-dots" aria-hidden>
+        <span />
+        <span />
+        <span />
       </div>
-      {error && (
-        <div
-          style={{
-            color: "var(--color-danger)",
-            fontSize: 14,
-            marginBottom: 8,
-          }}
-        >
-          {error}
-        </div>
-      )}
-      {busy && (
-        <div style={{ fontSize: 14, color: "var(--color-muted)", marginBottom: 8 }}>Thinking…</div>
-      )}
+      <span>{ui.thinking}</span>
+    </div>
+  );
+}
+
+export function ChatPage({ messages, draft, onDraftChange, onSend, busy, error }: ChatPageProps) {
+  return (
+    <div className="chat-page">
+      <div className="chat-scroll">
+        <MessageList messages={messages} busy={busy} />
+      </div>
+      {error && <div className="text-error chat-error">{error}</div>}
+      {busy && <ThinkingIndicator />}
       <ChatInput value={draft} onChange={onDraftChange} onSubmit={onSend} disabled={busy} />
     </div>
   );
