@@ -1,4 +1,7 @@
-"""Agent tools (Phase 6).
+"""Legacy tool implementations wrapped by Vanna-native adapters.
+
+The production agent registers Vanna Tool wrappers from
+vai_agent.vanna_integration.vanna_tools, which delegate to selected tools here.
 
 Each tool inherits from :class:`ToolBase`, declares a Pydantic
 ``args_model``, declares the ``access_groups`` allowed to invoke it,

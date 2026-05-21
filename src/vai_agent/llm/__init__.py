@@ -1,14 +1,10 @@
-"""LLM-related types and deprecated factory hooks."""
+"""LLM support package.
 
-from vai_agent.llm.base import ChatCompletionClient, ChatCompletionResult, ChatMessage
-from vai_agent.llm.errors import LlmError, LlmUpstreamError
-from vai_agent.llm.factory import build_chat_completion_client
+Production Vanna integration uses vai_agent.vanna_integration.model_llm.
+The retry wrapper remains available as the supported utility in this package.
 
-__all__ = [
-    "ChatCompletionClient",
-    "ChatCompletionResult",
-    "ChatMessage",
-    "LlmError",
-    "LlmUpstreamError",
-    "build_chat_completion_client",
-]
+Legacy ChatCompletionClient abstractions are intentionally not re-exported
+from package import time.
+"""
+
+__all__: list[str] = []

@@ -48,6 +48,20 @@ Column naming:
 - Never use SQL reserved words as column aliases (e.g. avoid: Count, Name, Order, Select).
 - Use bracket notation for ambiguous aliases: [record_count], [customer_name], [total_revenue].
 - Use descriptive alias names that match the business question.
+
+GROUP BY / aggregates (critical):
+- If SELECT uses SUM, COUNT, AVG, MAX, MIN, or any aggregate, every non-aggregated column
+  in SELECT must appear in GROUP BY.
+- Rankings like "top 5 customers by orders": GROUP BY customer key/name columns only;
+  use COUNT(*) or SUM(...) for the metric, then ORDER BY that metric DESC and TOP N.
+- Never put non-aggregated columns (e.g. FirstName, LastName) in SELECT without GROUP BY
+  when aggregates are present.
+- Example pattern:
+  SELECT TOP 5 c.CustomerID, c.CompanyName, COUNT(*) AS [order_count]
+  FROM dbo.Customers c
+  INNER JOIN dbo.Orders o ON ...
+  GROUP BY c.CustomerID, c.CompanyName
+  ORDER BY [order_count] DESC
 """
 
 

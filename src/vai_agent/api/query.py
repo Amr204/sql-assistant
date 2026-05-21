@@ -1,4 +1,7 @@
-"""FastAPI routes for the agent.
+"""Legacy agent debug routes.
+
+These routes are kept for backwards compatibility and local inspection.
+The primary public tools API lives under api/v1/tools.py.
 
 * ``GET  /agent/tools``                    — list of tools visible to the caller
 * ``POST /agent/tools/{tool_name}/invoke`` — invoke a tool (via Vanna ``ToolRegistry``)

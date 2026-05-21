@@ -1,14 +1,11 @@
-"""Vanna SQL tools use :class:`~vai_agent.vanna_integration.vai_run_sql_tool.VaiRunSqlTool` (structured, no CSV)."""
+"""Vanna SQL tools use structured results (no CSV file storage setting)."""
 
 from __future__ import annotations
 
 from vai_agent.config.settings import Settings
 
 
-def test_vanna_file_storage_default_under_dot_data() -> None:
+def test_settings_no_csv_file_storage_dir() -> None:
+    """CSV export path settings were removed; SQL results are structured in-app."""
     s = Settings(_env_file=None)  # type: ignore[call-arg]
-    assert s.vanna_file_storage_dir.startswith(".data/")
-    assert "vanna_files" in s.vanna_file_storage_dir
-
-# Legacy CSV export path removed from factory; settings key kept for compatibility.
-
+    assert "vanna_file_storage_dir" not in Settings.model_fields

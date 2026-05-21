@@ -1,6 +1,15 @@
-"""Adapters and factories wiring this service to the ``vanna`` 2.x Agent API."""
+"""Vanna integration package.
 
-from vai_agent.vanna_integration.factory import build_vanna_runtime
-from vai_agent.vanna_integration.runtime import VaiVannaRuntime
+This package contains the production Vanna runtime integration for SQL Assistant.
 
-__all__ = ["VaiVannaRuntime", "build_vanna_runtime"]
+Keep this package initializer intentionally lightweight:
+- do not import factory.py here
+- do not import chromadb here
+- do not import vanna here
+- do not re-export build_vanna_runtime here
+
+Import runtime builders explicitly from:
+    vai_agent.vanna_integration.factory
+"""
+
+__all__: list[str] = []

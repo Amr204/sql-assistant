@@ -37,7 +37,6 @@ class ChunkingStrategy(StrEnum):
     """How profile text is split before vector indexing."""
 
     EARLY = "early"
-    LATE = "late"
 
 
 @dataclass(frozen=True)
@@ -81,16 +80,6 @@ def chunk_profile(
     chunks.extend(_chunk_metrics(pid, profile))
     chunks.extend(_chunk_examples(pid, profile))
     chunks.extend(_chunk_table_profiles(pid, profile))
-
-    if strategy == ChunkingStrategy.LATE:
-        chunks = [
-            ProfileChunk(
-                document=c.document,
-                id=c.id,
-                metadata={**c.metadata, "chunking_strategy": "late"},
-            )
-            for c in chunks
-        ]
 
     return chunks
 

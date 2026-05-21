@@ -22,9 +22,7 @@ def test_defaults_load_without_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.log_format == "text"
     assert settings.log_dir == "logs"
     assert settings.log_file == "app.log"
-    assert settings.enable_sql_csv_exports is False
-    assert settings.enable_visualization_tools is False
-    assert settings.sql_auto_export_min_rows == 1000
+    assert settings.chunking_strategy == "early"
     assert settings.audit_enabled is True
     assert settings.audit_dir == "audit"
     assert settings.audit_file == "activity_log.xlsx"

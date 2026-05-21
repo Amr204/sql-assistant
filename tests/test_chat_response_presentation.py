@@ -82,9 +82,7 @@ def test_arabic_ranking_summary_for_weak_customers() -> None:
     assert p.table is not None
 
 
-def test_settings_disable_visualization_and_csv_by_default(monkeypatch) -> None:
-    monkeypatch.delenv("ENABLE_VISUALIZATION_TOOLS", raising=False)
-    monkeypatch.delenv("ENABLE_SQL_CSV_EXPORTS", raising=False)
+def test_settings_chunking_strategy_defaults_to_early(monkeypatch) -> None:
+    monkeypatch.delenv("CHUNKING_STRATEGY", raising=False)
     s = Settings(_env_file=None)  # type: ignore[call-arg]
-    assert s.enable_visualization_tools is False
-    assert s.enable_sql_csv_exports is False
+    assert s.chunking_strategy == "early"

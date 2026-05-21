@@ -75,6 +75,7 @@ export interface ChatMessage {
   confidence?: number | null;
   execution_ms?: number | null;
   warnings?: string[];
+  apiErrors?: ChatResponse["errors"];
   path?: string | null;
   timings?: Record<string, number> | null;
 }

@@ -1,4 +1,10 @@
-"""Late chunking: embed full document, pool token vectors per chunk span."""
+"""Experimental late chunking (not wired into the runtime).
+
+Late chunking would embed full profile text once, then pool token vectors per
+chunk span. The production path uses :func:`~vai_agent.memory.chunking.chunk_profile`
+with ``ChunkingStrategy.EARLY`` only. Do not enable ``chunking_strategy=late`` in
+settings until this module is integrated into :mod:`vai_agent.memory.seed_memory`.
+"""
 
 from __future__ import annotations
 

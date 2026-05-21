@@ -1,5 +1,6 @@
 import { memo } from "react";
 import type { ChatMessage } from "../../api/types";
+import { hasDisplayableResults } from "../../api/validate";
 import { ui } from "../../locale/uiStrings";
 import { ExplanationPanel } from "./results/ExplanationPanel";
 import { GeneratedSqlPanel } from "./results/GeneratedSqlPanel";
@@ -38,6 +39,8 @@ export const MessageBubble = memo(function MessageBubble({ message }: MessageBub
   }
 
   const warnCount = message.warnings?.length ?? 0;
+  const apiErrorCount = message.apiErrors?.length ?? 0;
+  const showResults = hasDisplayableResults(message);
 
   return (
     <article className={cls}>
@@ -55,9 +58,31 @@ export const MessageBubble = memo(function MessageBubble({ message }: MessageBub
         timings={message.timings}
       />
       <ResultSummaryCard answer={message.content} />
+      {!showResults ? (
+        <section className="result-card result-card--warn" role="alert">
+          <h3 className="result-card-title">{ui.noSqlResults}</h3>
+          <p className="result-summary">{ui.noSqlResultsHint}</p>
+        </section>
+      ) : null}
       {message.sql ? <GeneratedSqlPanel sql={message.sql} /> : null}
       {message.table ? <ResultsTable table={message.table} /> : null}
       {message.explanation ? <ExplanationPanel text={message.explanation} /> : null}
+      {warnCount > 0 ? (
+        <ul className="chat-warnings" role="note">
+          {message.warnings!.map((w, i) => (
+            <li key={`warn-${i}`}>{w}</li>
+          ))}
+        </ul>
+      ) : null}
+      {apiErrorCount > 0 ? (
+        <ul className="chat-api-errors" role="alert">
+          {message.apiErrors!.map((err, i) => (
+            <li key={`${err.code}-${i}`}>
+              {err.code}: {err.message}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </article>
   );
 });

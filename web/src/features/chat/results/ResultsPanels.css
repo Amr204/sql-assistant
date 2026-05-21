@@ -136,3 +136,20 @@
   line-height: 1.5;
   color: var(--color-text);
 }
+
+.result-card--warn {
+  border-color: rgba(200, 120, 0, 0.45);
+  background: rgba(200, 120, 0, 0.06);
+}
+
+.chat-warnings,
+.chat-api-errors {
+  margin: var(--space-2) 0 0;
+  padding-inline-start: 1.25rem;
+  font-size: var(--font-size-sm);
+  color: var(--color-muted);
+}
+
+.chat-api-errors {
+  color: rgb(180, 60, 60);
+}

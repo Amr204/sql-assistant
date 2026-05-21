@@ -26,8 +26,22 @@ export const ResultsTable = memo(function ResultsTable({ table }: ResultsTablePr
     return safe.rows.slice(0, MAX_RENDER_ROWS);
   }, [safe?.rows]);
 
+  console.debug("[ResultsTable] render", {
+    columns: cols,
+    rowCount: safe?.row_count,
+    renderRows: rows.length,
+  });
+
   if (!safe || cols.length === 0) {
     return <p className="text-muted">{ui.noData}</p>;
+  }
+
+  if (rows.length === 0 && (safe.row_count ?? 0) > 0) {
+    return (
+      <p className="text-muted">
+        {ui.noData} ({safe.row_count} {ui.rows})
+      </p>
+    );
   }
 
   return (

@@ -1,0 +1,264 @@
+%%{init: {
+  "theme": "base",
+  "flowchart": {
+    "curve": "basis",
+    "htmlLabels": true,
+    "nodeSpacing": 50,
+    "rankSpacing": 70
+  },
+  "themeVariables": {
+    "background": "#111827",
+    "primaryColor": "#1f2937",
+    "primaryTextColor": "#e5e7eb",
+    "primaryBorderColor": "#22c55e",
+    "lineColor": "#94a3b8",
+    "fontFamily": "Segoe UI, Arial"
+  }
+}}%%
+
+flowchart TD
+
+START(["🚀 User asks a question<br/>المستخدم يرسل سؤال"])
+
+%% ======================================================
+%% API ENTRY AND VALIDATION
+%% ======================================================
+
+subgraph STAGE1["1️⃣ API Entry / استقبال الطلب"]
+    direction TB
+
+    Q1("<b>POST /api/v1/chat</b><br/>question + metadata + conversation_id")
+    Q2("<b>Pydantic ChatRequest</b><br/>parse + schema validation")
+    Q3("<b>ConversationIngressFilter</b><br/>input safety checks")
+    Q4{"Valid request?"}
+    Q5("<b>Reject 400</b><br/>EMPTY_MESSAGE / MESSAGE_TOO_LARGE / PROMPT_INJECTION")
+end
+
+START --> Q1 --> Q2 --> Q3 --> Q4
+Q4 -- "No" --> Q5
+
+%% ======================================================
+%% AUTH AND RUNTIME
+%% ======================================================
+
+subgraph STAGE2["2️⃣ Identity + Runtime / الهوية والجاهزية"]
+    direction TB
+
+    A1("<b>Rate Limit</b><br/>limit by user/ip/group")
+    A2("<b>UserResolver</b><br/>dev/header/future_oidc")
+    A3{"Authenticated?"}
+    A4("<b>Reject 401</b><br/>AUTH_REQUIRED")
+    A5("<b>require_runtime</b><br/>app.state.agent")
+    A6{"Agent ready?"}
+    A7("<b>Reject 503</b><br/>AGENT_NOT_READY")
+end
+
+Q4 -- "Yes" --> A1 --> A2 --> A3
+A3 -- "No" --> A4
+A3 -- "Yes" --> A5 --> A6
+A6 -- "No" --> A7
+
+%% ======================================================
+%% ROUTING DECISION
+%% ======================================================
+
+subgraph STAGE3["3️⃣ Route Selection / اختيار المسار"]
+    direction TB
+
+    R1("<b>Question Normalization</b><br/>تحضير السؤال")
+    R2{"sql_fast_enabled?"}
+    R3{"Fast path confident?"}
+    R4("<b>Use Case A</b><br/>Fast SQL Answer")
+    R5("<b>Use Case B</b><br/>Full Vanna Agent")
+end
+
+A6 -- "Yes" --> R1 --> R2
+R2 -- "Yes" --> R3
+R3 -- "Yes" --> R4
+R3 -- "No" --> R5
+R2 -- "No" --> R5
+
+%% ======================================================
+%% USE CASE A: FAST SQL
+%% ======================================================
+
+subgraph UCA["⚡ UC-A: Fast SQL Answer / إجابة SQL سريعة"]
+    direction TB
+
+    FA1("<b>ContextEnhancer</b><br/>select relevant tables/examples/rules")
+    FA2("<b>Build compact prompt</b><br/>schema + constraints")
+    FA3("<b>Call LLM JSON SQL Generator</b><br/>OpenAI-compatible")
+    FA4{"SQL JSON valid?"}
+    FA5("<b>Fallback</b><br/>switch to Vanna Agent")
+    FA6("<b>Candidate SQL</b><br/>SELECT statement")
+end
+
+R4 --> FA1 --> FA2 --> FA3 --> FA4
+FA4 -- "No" --> FA5 --> R5
+FA4 -- "Yes" --> FA6
+
+%% ======================================================
+%% USE CASE B: FULL VANNA AGENT
+%% ======================================================
+
+subgraph UCB["🤖 UC-B: Full Vanna Agent / مسار Vanna الكامل"]
+    direction TB
+
+    VA1("<b>GuardedChatHandler</b><br/>auth + cancellation + inner guard")
+    VA2("<b>ProfileLlmContextEnhancer</b><br/>inject RAG context")
+    VA3("<b>VannaAgent</b><br/>decides next action")
+    VA4{"Need tool?"}
+    VA5("<b>Direct answer</b><br/>بدون أداة")
+    VA6{"Which tool?"}
+end
+
+R5 --> VA1 --> VA2 --> VA3 --> VA4
+VA4 -- "No" --> VA5
+VA4 -- "Yes" --> VA6
+
+%% ======================================================
+%% TOOL USE CASES
+%% ======================================================
+
+subgraph UCT["🧰 Tool Use Cases / استخدام الأدوات"]
+    direction TB
+
+    TSQL("<b>UC-C Run SQL</b><br/>VaiRunSqlTool")
+    TSCHEMA("<b>UC-D Explain Schema</b><br/>ExplainSchemaVannaTool")
+    TPROFILE("<b>UC-E Profile Search</b><br/>ProfileSearchVannaTool")
+    TMEM1("<b>UC-F Search Memory</b><br/>SearchSavedCorrectToolUsesTool")
+    TMEM2("<b>UC-G Save Correct SQL</b><br/>SaveQuestionToolArgsTool")
+    TMEM3("<b>UC-H Save Text Memory</b><br/>SaveTextMemoryTool")
+end
+
+VA6 -- "run_sql" --> TSQL
+VA6 -- "explain_schema" --> TSCHEMA
+VA6 -- "profile_search" --> TPROFILE
+VA6 -- "memory_search" --> TMEM1
+VA6 -- "save_question" --> TMEM2
+VA6 -- "save_text" --> TMEM3
+
+%% ======================================================
+%% SQL EXECUTION PIPELINE
+%% ======================================================
+
+subgraph SQLPIPE["🔐 SQL Execution Pipeline / خط تنفيذ SQL الآمن"]
+    direction TB
+
+    S1("<b>PolicySqlRunner</b><br/>execution gateway")
+    S2("<b>SqlPolicyEngine</b><br/>SELECT-only + no dangerous SQL")
+    S3{"SQL safe?"}
+    S4("<b>Reject SQL</b><br/>POLICY_REJECTED")
+    S5("<b>PiiPolicyEngine</b><br/>PII access control")
+    S6{"PII allowed?"}
+    S7("<b>Reject PII</b><br/>PII_POLICY_REJECTED")
+    S8("<b>MssqlRunner</b><br/>connection pool + pyodbc")
+    S9("<b>SQL Server</b><br/>execute query")
+    S10("<b>ResultPolicy</b><br/>privacy filtering + masking")
+    S11("<b>Presenter</b><br/>table + preview + metadata")
+end
+
+FA6 --> S1
+TSQL --> S1
+S1 --> S2 --> S3
+S3 -- "No" --> S4
+S3 -- "Yes" --> S5 --> S6
+S6 -- "No" --> S7
+S6 -- "Yes" --> S8 --> S9 --> S10 --> S11
+
+%% ======================================================
+%% NON-SQL TOOL FLOWS
+%% ======================================================
+
+subgraph KNOW["📚 Knowledge + Memory Flows / المعرفة والذاكرة"]
+    direction TB
+
+    K1("<b>Profile YAML</b><br/>tables / relations / examples")
+    K2("<b>ChromaDB</b><br/>semantic memory")
+    K3("<b>Embedding model</b><br/>vector search")
+    K4("<b>ToolResult</b><br/>result_for_llm + result_for_user")
+end
+
+TSCHEMA --> K1 --> K4
+TPROFILE --> K1
+TPROFILE --> K2 --> K3 --> K4
+TMEM1 --> K2 --> K4
+TMEM2 --> K2 --> K4
+TMEM3 --> K2 --> K4
+
+K4 --> VA3
+
+%% ======================================================
+%% ANSWER COMPOSITION
+%% ======================================================
+
+subgraph ANSWER["📤 Response / بناء الرد"]
+    direction TB
+
+    O1("<b>Compose ChatResponse</b><br/>answer + sql + table + errors")
+    O2("<b>Audit Activity</b><br/>request_id + user + status")
+    O3("<b>Tool Audit</b><br/>tool call + outcome")
+    O4("<b>Return JSON</b><br/>to .NET / UI")
+end
+
+S11 --> O1
+VA5 --> O1
+S4 --> O1
+S7 --> O1
+K4 --> O1
+
+O1 --> O2
+O1 --> O3
+O1 --> O4
+
+%% ======================================================
+%% OPERATIONAL USE CASES
+%% ======================================================
+
+subgraph OPSUC["⚙️ Operational Use Cases / حالات التشغيل"]
+    direction TB
+
+    OP1("<b>UC-I Readiness</b><br/>GET /ready")
+    OP2("<b>UC-J Health</b><br/>GET /health")
+    OP3("<b>UC-K Tools Listing</b><br/>GET /api/v1/tools")
+    OP4("<b>UC-L Memory API</b><br/>GET/POST /api/v1/memory")
+    OP5("<b>UC-M Profile API</b><br/>GET /api/v1/profile")
+    OP6("<b>UC-N Shutdown</b><br/>lifespan closes httpx + DB pool")
+end
+
+OP1 --> A5
+OP2 --> A5
+OP3 --> TSQL
+OP3 --> TSCHEMA
+OP3 --> TPROFILE
+OP4 --> K2
+OP5 --> K1
+OP6 --> O2
+
+%% ======================================================
+%% CLASSES
+%% ======================================================
+
+classDef start fill:#022c22,stroke:#22c55e,stroke-width:3px,color:#dcfce7;
+classDef stage fill:#1e293b,stroke:#38bdf8,stroke-width:2px,color:#e0f2fe;
+classDef guard fill:#4c1d95,stroke:#c084fc,stroke-width:2px,color:#f3e8ff;
+classDef decision fill:#713f12,stroke:#fde047,stroke-width:2px,color:#fef9c3;
+classDef fast fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#d1fae5;
+classDef agent fill:#312e81,stroke:#818cf8,stroke-width:2px,color:#e0e7ff;
+classDef tool fill:#0f766e,stroke:#5eead4,stroke-width:2px,color:#ccfbf1;
+classDef security fill:#7f1d1d,stroke:#f87171,stroke-width:2px,color:#fee2e2;
+classDef knowledge fill:#14532d,stroke:#86efac,stroke-width:2px,color:#dcfce7;
+classDef output fill:#164e63,stroke:#67e8f9,stroke-width:2px,color:#cffafe;
+classDef error fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fee2e2;
+
+class START start;
+class Q1,Q2,A1,A2,A5,R1,OP1,OP2,OP3,OP4,OP5,OP6 stage;
+class Q3,A4,A7 guard;
+class Q4,A3,A6,R2,R3,FA4,VA4,VA6,S3,S6 decision;
+class R4,FA1,FA2,FA3,FA5,FA6 fast;
+class R5,VA1,VA2,VA3,VA5 agent;
+class TSQL,TSCHEMA,TPROFILE,TMEM1,TMEM2,TMEM3 tool;
+class S1,S2,S4,S5,S7,S8,S9,S10,S11 security;
+class K1,K2,K3,K4 knowledge;
+class O1,O2,O3,O4 output;
+class Q5,S4,S7 error;

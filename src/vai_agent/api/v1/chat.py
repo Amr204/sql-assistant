@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import re
 import uuid
 from time import perf_counter
 from typing import Any
@@ -15,43 +17,75 @@ from vai_agent.audit.activity_recorder import (
     get_activity_recorder,
     safe_record_activity,
 )
-from vai_agent.config.settings import get_settings
+from vai_agent.config.settings import LlmProvider, get_settings
 from vai_agent.presentation.sql_result_presenter import (
     clean_assistant_text,
     present_sql_result,
 )
-from vai_agent.security.prompt_injection import check_prompt_injection
 from vai_agent.sqlfast.intent_router import ChatPath, route_intent
 from vai_agent.sqlfast.service import SqlFastOutcome, SqlFastService
 from vai_agent.users import UserResolutionError
+from vai_agent.vanna_integration.extensions.conversation_filters import (
+    ConversationIngressFilter,
+)
 from vai_agent.vanna_integration.guarded_chat import GuardedChatHandler
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
+_INGRESS_FILTER = ConversationIngressFilter()
+logger = logging.getLogger(__name__)
+
+_BOILERPLATE_ANSWER = re.compile(
+    r"(?i)^(\s*)?(tool\s+completed|completed\s+successfully|successfully\s+completed|"
+    r"query\s+executed|done\.?|ok\.?)\s*!?\s*$",
+)
+
+
+def _is_boilerplate_answer(text: str) -> bool:
+    t = text.strip()
+    if not t:
+        return True
+    if _BOILERPLATE_ANSWER.match(t):
+        return True
+    if len(t) < 80 and "successfully" in t.lower() and "tool" in t.lower():
+        return True
+    return False
+
 
 def extract_answer(payload: dict[str, Any]) -> str:
     """Extract assistant text from a Vanna or legacy payload dict."""
+
+    candidates: list[str] = []
+
     for key in ("answer", "message", "text", "content"):
         value = payload.get(key)
         if isinstance(value, str) and value.strip():
-            return value
+            candidates.append(value.strip())
+
     data = payload.get("data")
     if isinstance(data, dict):
         for key in ("answer", "message", "text", "content"):
             value = data.get(key)
             if isinstance(value, str) and value.strip():
-                return value
+                candidates.append(value.strip())
+
     chunks = payload.get("chunks")
     if isinstance(chunks, list):
-        for chunk in chunks:
+        for chunk in reversed(chunks):
             if not isinstance(chunk, dict):
                 continue
-            simple = chunk.get("simple")
-            if isinstance(simple, dict):
-                text = simple.get("text")
+            for block_key in ("simple", "rich"):
+                block = chunk.get(block_key)
+                if not isinstance(block, dict):
+                    continue
+                text = block.get("text") or block.get("message") or block.get("content")
                 if isinstance(text, str) and text.strip():
-                    return text
-    return ""
+                    candidates.append(text.strip())
+
+    for text in candidates:
+        if not _is_boilerplate_answer(text):
+            return text
+    return candidates[0] if candidates else ""
 
 
 def _extract_sql_tables(raw: dict[str, Any]) -> tuple[str | None, list[dict[str, Any]]]:
@@ -173,6 +207,16 @@ def _merge_wall_timings(resp: ChatResponse, *, intent_ms: int, t0: float) -> Cha
 @router.post("", response_model=ChatResponse)
 async def ask(body: ChatRequest, request: Request) -> ChatResponse:
     """Handle POST /api/v1/chat (SQL fast path or guarded Vanna agent)."""
+    filter_result = _INGRESS_FILTER.check_message(body.question, body.metadata)
+    if not filter_result.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": filter_result.code or "REQUEST_REJECTED",
+                "message": filter_result.reason or "Request rejected.",
+            },
+        )
+
     runtime = require_runtime(request)
     settings = get_settings()
     request_id = uuid.uuid4().hex
@@ -180,17 +224,6 @@ async def ask(body: ChatRequest, request: Request) -> ChatResponse:
     recorder = get_activity_recorder()
     profile_id = runtime.profile.meta.profile_id
     db_name = runtime.profile.meta.database_name
-
-    injection = check_prompt_injection(body.question)
-    if not injection.allowed:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "code": "PROMPT_REJECTED",
-                "message": "The question was rejected by safety checks.",
-                "reason": injection.reason,
-            },
-        )
 
     metadata = {
         **body.metadata,
@@ -325,6 +358,70 @@ async def ask(body: ChatRequest, request: Request) -> ChatResponse:
             )
             return out
 
+        if fast.outcome is SqlFastOutcome.EXECUTION_FAILED and fast.response is not None:
+            out = _merge_wall_timings(fast.response, intent_ms=intent_ms, t0=t0)
+            timings_json = json.dumps(out.timings or {})
+            safe_record_activity(
+                recorder,
+                ActivityEvent(
+                    request_id=request_id,
+                    event_type="response.sent",
+                    status="error",
+                    conversation_id=out.conversation_id,
+                    route="/api/v1/chat",
+                    user_id=user_id,
+                    user_email=user_email,
+                    user_groups=user_groups,
+                    profile_id=profile_id,
+                    db_name=db_name,
+                    question=body.question,
+                    tool_name="sql_fast",
+                    generated_sql=out.sql or "",
+                    executed_sql="",
+                    row_count=0,
+                    duration_ms=out.timings.get("total_ms") if out.timings else None,
+                    answer_preview=out.answer,
+                    model_provider=settings.audit_model_provider,
+                    model_name=settings.effective_model_name,
+                    timings_json=timings_json,
+                ),
+            )
+            return out
+
+        if fast.outcome is SqlFastOutcome.FALLBACK_VANNA:
+            prov = settings.model_provider
+            key = settings.effective_model_api_key
+            no_llm = prov is LlmProvider.none or key is None or not key.get_secret_value().strip()
+            if no_llm:
+                logger.warning(
+                    "sql_fast unavailable (no LLM); skipping vanna_agent for data question",
+                    extra={"question": body.question[:120]},
+                )
+                return ChatResponse(
+                    conversation_id=body.conversation_id,
+                    request_id=request_id,
+                    question=body.question,
+                    answer=(
+                        "لم يتم تكوين نموذج اللغة (MODEL_PROVIDER و MODEL_API_KEY). "
+                        "لا يمكن توليد SQL أو تنفيذ استعلام على قاعدة البيانات."
+                    ),
+                    sql=None,
+                    explanation=None,
+                    confidence=None,
+                    table=None,
+                    warnings=[
+                        "مسار sql_fast يتطلب MODEL_PROVIDER=openai_compatible و MODEL_API_KEY و MODEL_NAME.",
+                    ],
+                    errors=[],
+                    execution_ms=int((perf_counter() - t0) * 1000),
+                    path="sql_fast",
+                    timings={"intent_ms": intent_ms, "total_ms": int((perf_counter() - t0) * 1000)},
+                )
+            logger.info(
+                "sql_fast fell back to vanna_agent",
+                extra={"question": body.question[:120], "timings_ms": fast.phase_timings_ms},
+            )
+
     vanna_request = VannaChatRequest(
         message=body.question,
         conversation_id=body.conversation_id,
@@ -427,9 +524,19 @@ async def ask(body: ChatRequest, request: Request) -> ChatResponse:
         warnings = list(presented.warnings)
     else:
         fallback = clean_assistant_text(extract_answer(raw))
-        answer = fallback if fallback else "(No text reply)"
+        if fallback and not _is_boilerplate_answer(fallback):
+            answer = fallback
+        else:
+            answer = (
+                "لم يُنفَّذ استعلام SQL على قاعدة البيانات، أو لم تُرجع الأدوات نتيجة منظمة."
+            )
         if tables_hint and not rows:
             warnings.append("Structured rows missing from agent payload; table omitted.")
+        if not sql_out and not rows:
+            warnings.append(
+                "No SQL was executed (mssql_runner was not invoked). "
+                "Configure MODEL_* for sql_fast or ensure the agent calls run_sql.",
+            )
 
     duration_ms = execution_ms
     timings_agent = {

@@ -63,20 +63,6 @@ class Settings(BaseSettings):
     log_dir: str = Field(default="logs", description="Directory for application log files.")
     log_file: str = Field(default="app.log", description="Application log filename (text or JSON lines).")
 
-    enable_sql_csv_exports: bool = Field(
-        default=False,
-        description="When false, RunSqlTool does not receive a file sink (no query_results CSV).",
-    )
-    enable_visualization_tools: bool = Field(
-        default=False,
-        description="Reserved: when false, prompts discourage chart/visualization tool use.",
-    )
-    sql_auto_export_min_rows: int = Field(
-        default=1000,
-        ge=1,
-        description="Minimum rows before auto CSV export would apply (reserved for future use).",
-    )
-
     audit_enabled: bool = Field(default=True, description="Write activity audit rows to Excel.")
     audit_dir: str = Field(default="audit", description="Directory for activity audit workbook.")
     audit_file: str = Field(
@@ -101,13 +87,6 @@ class Settings(BaseSettings):
     chroma_persist_dir: str = Field(
         default=".data/chroma",
         description="Persistent directory for ChromaDB collections.",
-    )
-    vanna_file_storage_dir: str = Field(
-        default=".data/vanna_files",
-        description=(
-            "Root directory for Vanna RunSqlTool CSV exports (LocalFileSystem); "
-            "per-user subfolders are created under this path — never the project root."
-        ),
     )
     user_resolver_mode: Literal["dev", "header", "future_oidc"] = Field(
         default="dev",
@@ -191,9 +170,9 @@ class Settings(BaseSettings):
             "Device for paraphrase-multilingual-MiniLM-L12-v2 embeddings: 'cpu' or 'cuda'."
         ),
     )
-    chunking_strategy: str = Field(
+    chunking_strategy: Literal["early"] = Field(
         default="early",
-        description="Profile chunking: 'early' (chunk then embed) or 'late' (embed then chunk).",
+        description="Profile chunking strategy (only 'early' is supported in the current runtime).",
     )
     warmup_on_startup: bool = Field(
         default=True,
@@ -238,14 +217,29 @@ class Settings(BaseSettings):
             return LlmProvider.openai_compatible
         return v
 
+    @field_validator("chunking_strategy", mode="before")
+    @classmethod
+    def _reject_unimplemented_chunking(cls, v: object) -> object:
+        if isinstance(v, str) and v.strip().lower() == "late":
+            raise ValueError(
+                "chunking_strategy=late is not implemented in the current src runtime. "
+                "Use chunking_strategy=early until LateChunker is wired into seed_memory."
+            )
+        return v
+
     @model_validator(mode="after")
     def _validate_deployment_security(self) -> Self:
         """Reject unsafe resolver/CORS combinations for non-dev environments."""
 
+        if self.user_resolver_mode == "future_oidc":
+            raise ValueError(
+                "user_resolver_mode=future_oidc is reserved and not implemented. "
+                "Use dev (APP_ENV=dev only) or header."
+            )
         if self.app_env is not AppEnv.dev and self.user_resolver_mode == "dev":
             raise ValueError(
                 "USER_RESOLVER_MODE=dev is only permitted when APP_ENV=dev. "
-                "Use header (behind a trusted proxy) or future_oidc in staging/prod."
+                "Use header (behind a trusted proxy) in staging/prod."
             )
         if self.is_prod:
             for origin in self.cors_origin_list():

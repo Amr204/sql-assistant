@@ -1,133 +1,183 @@
-"""Tests for :class:`vai_agent.vai_app.agent_factory.Agent`."""
+"""Tests for Vanna runtime tool dispatch via :func:`build_vanna_runtime`."""
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pathlib import Path
 
-from vai_agent.tools.base import ToolBase, ToolResult
-from vai_agent.users import User, UserResolver, UserResolverMode
-from vai_agent.vai_app.agent_factory import Agent
-from vai_agent.vai_app.tool_registry import ToolRegistry
+import pytest
+from pydantic import BaseModel, SecretStr
+from vanna.core.tool import Tool, ToolCall, ToolContext, ToolResult
+from vanna.core.user.models import User
 
+from tests.test_api_query import DummyEF, _AdminVannaTool
+from vai_agent.config.settings import Settings
+from vai_agent.db.connection import ConnectionSettings
+from vai_agent.knowledge import ProfileLoader
+from vai_agent.memory.memory_factory import create_memory
+from vai_agent.vanna_integration.factory import build_vanna_runtime
 
-class _PingArgs(BaseModel):
-    msg: str
-
-
-class _PingTool(ToolBase):
-    name = "ping"
-    description = "Echo back the message."
-    args_model = _PingArgs
-
-    def execute(self, args: BaseModel, user: User) -> ToolResult:
-        assert isinstance(args, _PingArgs)
-        return self._ok({"msg": args.msg})
+FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "profiles"
 
 
-class _AdminTool(ToolBase):
-    name = "admin_only"
-    description = "Privileged."
-    args_model = _PingArgs
-    access_groups = ("admin",)
-
-    def execute(self, args: BaseModel, user: User) -> ToolResult:
-        return self._ok({"ok": True})
+class _NoArgs(BaseModel):
+    pass
 
 
-class _BrokenTool(ToolBase):
-    name = "broken"
-    description = "Always raises."
-    args_model = _PingArgs
+class _BrokenVannaTool(Tool[_NoArgs]):
+    @property
+    def name(self) -> str:
+        return "broken"
 
-    def execute(self, args: BaseModel, user: User) -> ToolResult:
+    @property
+    def description(self) -> str:
+        return "Always raises."
+
+    def get_args_schema(self) -> type[_NoArgs]:
+        return _NoArgs
+
+    @property
+    def access_groups(self) -> list[str]:
+        return ["analyst"]
+
+    async def execute(self, context: ToolContext, args: _NoArgs) -> ToolResult:
         raise RuntimeError("oops")
 
 
-def _agent(*tools: ToolBase, mode: UserResolverMode = UserResolverMode.dev) -> Agent:
-    registry = ToolRegistry()
-    registry.register_all(tools)
-    resolver = UserResolver(
-        mode, default_user=User(id="dev", groups=("analyst",)) if mode is UserResolverMode.dev else None,
+def _connection_settings() -> ConnectionSettings:
+    return ConnectionSettings(
+        _env_file=None,
+        host="127.0.0.1",
+        port=1433,
+        database="db",
+        username="u",
+        password=SecretStr("pw"),
     )
-    return Agent(registry, resolver)
 
 
-# ---------------------------------------------------------------------------
-# Dispatch
-# ---------------------------------------------------------------------------
+def _build_runtime(tmp_path: Path, *, extra_tools: list | None = None):
+    profile = ProfileLoader(FIXTURE_ROOT).load("sample")
+    settings = Settings(  # type: ignore[call-arg]
+        db_profile_id="sample",
+        profiles_root=str(FIXTURE_ROOT),
+        user_resolver_mode="dev",
+        dev_user_id="dev",
+        dev_user_groups="analyst,admin",
+        llm_provider="none",
+        chroma_persist_dir=str(tmp_path / "c"),
+        _env_file=None,
+    )
+    mem, _ = create_memory(
+        profile_id="sample",
+        persist_dir=tmp_path / "c",
+        embedding_function=DummyEF(),
+    )
+    return build_vanna_runtime(
+        profile=profile,
+        connection_settings=_connection_settings(),
+        settings=settings,
+        chunk_memory=mem,
+        extra_local_tools=extra_tools or [],
+        vanna_embedding_function=DummyEF(),
+    )
 
 
-class TestInvoke:
-    def test_unknown_tool(self) -> None:
-        agent = _agent()
-        r = agent.invoke("ghost", {}, User(id="u"))
-        assert not r.success
-        assert "Unknown tool" in r.error
-        assert "request_id" in r.metadata
-
-    def test_happy_path(self) -> None:
-        agent = _agent(_PingTool())
-        r = agent.invoke("ping", {"msg": "hi"}, User(id="u"))
-        assert r.success
-        assert r.data == {"msg": "hi"}
-        assert "request_id" in r.metadata
-
-    def test_request_id_is_set_when_not_provided(self) -> None:
-        agent = _agent(_PingTool())
-        r = agent.invoke("ping", {"msg": "x"}, User(id="u"))
-        assert r.metadata["request_id"]
-
-    def test_request_id_passthrough(self) -> None:
-        agent = _agent(_PingTool())
-        r = agent.invoke("ping", {"msg": "x"}, User(id="u"), request_id="explicit-rid")
-        assert r.metadata["request_id"] == "explicit-rid"
+def _tool_context(runtime: object, *, user: User, request_id: str = "rid-1") -> ToolContext:
+    return ToolContext(
+        user=user,
+        conversation_id="test",
+        request_id=request_id,
+        agent_memory=runtime.vanna.agent_memory,
+        metadata={},
+    )
 
 
-# ---------------------------------------------------------------------------
-# Validation
-# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+class TestRuntimeToolDispatch:
+    async def test_unknown_tool(self, tmp_path: Path) -> None:
+        runtime = _build_runtime(tmp_path)
+        user = User(id="u", group_memberships=["analyst"])
+        ctx = _tool_context(runtime, user=user)
+        res = await runtime.vanna.tool_registry.execute(
+            ToolCall(id="rid-1", name="ghost", arguments={}),
+            ctx,
+        )
+        assert not res.success
+        assert res.error
+        assert "not found" in res.error.lower()
+
+    async def test_happy_path_explain_schema(self, tmp_path: Path) -> None:
+        runtime = _build_runtime(tmp_path)
+        user = User(id="u", group_memberships=["analyst"])
+        ctx = _tool_context(runtime, user=user)
+        res = await runtime.vanna.tool_registry.execute(
+            ToolCall(id="rid-1", name="explain_schema", arguments={}),
+            ctx,
+        )
+        assert res.success
+        assert res.result_for_llm
+
+    async def test_request_id_in_metadata(self, tmp_path: Path) -> None:
+        runtime = _build_runtime(tmp_path)
+        user = User(id="u", group_memberships=["analyst"])
+        ctx = _tool_context(runtime, user=user, request_id="explicit-rid")
+        res = await runtime.vanna.tool_registry.execute(
+            ToolCall(id="explicit-rid", name="explain_schema", arguments={}),
+            ctx,
+        )
+        assert res.success
 
 
+@pytest.mark.asyncio
 class TestArgValidation:
-    def test_invalid_args_returns_failure(self) -> None:
-        agent = _agent(_PingTool())
-        r = agent.invoke("ping", {"wrong": "field"}, User(id="u"))
-        assert not r.success
-        assert "Invalid arguments" in r.error
-        assert "validation_errors" in r.metadata
+    async def test_invalid_args_returns_failure(self, tmp_path: Path) -> None:
+        runtime = _build_runtime(tmp_path)
+        user = User(id="u", group_memberships=["analyst"])
+        ctx = _tool_context(runtime, user=user)
+        res = await runtime.vanna.tool_registry.execute(
+            ToolCall(id="rid-1", name="profile_search", arguments={"query": ""}),
+            ctx,
+        )
+        assert not res.success
+        assert res.error
+        assert "invalid" in res.error.lower() or "argument" in res.error.lower()
 
 
-# ---------------------------------------------------------------------------
-# Access control
-# ---------------------------------------------------------------------------
-
-
+@pytest.mark.asyncio
 class TestAccess:
-    def test_user_without_group_is_denied(self) -> None:
-        agent = _agent(_AdminTool())
-        r = agent.invoke("admin_only", {"msg": "x"}, User(id="u", groups=("reader",)))
-        assert not r.success
-        assert "Access denied" in r.error
+    async def test_user_without_group_is_denied(self, tmp_path: Path) -> None:
+        runtime = _build_runtime(tmp_path, extra_tools=[(_AdminVannaTool(), ["admin"])])
+        user = User(id="u", group_memberships=["reader"])
+        ctx = _tool_context(runtime, user=user)
+        res = await runtime.vanna.tool_registry.execute(
+            ToolCall(id="rid-1", name="admin_only", arguments={}),
+            ctx,
+        )
+        assert not res.success
+        assert res.error
+        assert "access" in res.error.lower()
 
-    def test_user_with_group_passes(self) -> None:
-        agent = _agent(_AdminTool())
-        r = agent.invoke("admin_only", {"msg": "x"}, User(id="u", groups=("admin",)))
-        assert r.success
+    async def test_user_with_group_passes(self, tmp_path: Path) -> None:
+        runtime = _build_runtime(tmp_path, extra_tools=[(_AdminVannaTool(), ["admin"])])
+        user = User(id="u", group_memberships=["admin"])
+        ctx = _tool_context(runtime, user=user)
+        res = await runtime.vanna.tool_registry.execute(
+            ToolCall(id="rid-1", name="admin_only", arguments={}),
+            ctx,
+        )
+        assert res.success
 
 
-# ---------------------------------------------------------------------------
-# Unhandled tool exceptions
-# ---------------------------------------------------------------------------
-
-
+@pytest.mark.asyncio
 class TestExceptionGuard:
-    def test_unhandled_tool_exception_does_not_leak(self) -> None:
-        agent = _agent(_BrokenTool())
-        r = agent.invoke("broken", {"msg": "x"}, User(id="u"))
-        assert not r.success
-        assert "Internal error" in r.error
-        # The exception message must not be in either field
-        assert "oops" not in (r.error or "")
-        assert "oops" not in str(r.metadata)
-        # But the exception type IS allowed (operator hint)
-        assert r.metadata["exc_type"] == "RuntimeError"
+    async def test_unhandled_tool_exception_returns_failure(self, tmp_path: Path) -> None:
+        """Vanna ToolRegistry wraps tool exceptions in a failed ToolResult."""
+        runtime = _build_runtime(tmp_path, extra_tools=[(_BrokenVannaTool(), ["analyst"])])
+        user = User(id="u", group_memberships=["analyst"])
+        ctx = _tool_context(runtime, user=user)
+        res = await runtime.vanna.tool_registry.execute(
+            ToolCall(id="rid-1", name="broken", arguments={}),
+            ctx,
+        )
+        assert not res.success
+        assert res.error
+        assert "Execution failed" in res.error

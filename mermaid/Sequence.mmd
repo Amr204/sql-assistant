@@ -1,0 +1,74 @@
+%%{init: {
+  "theme": "base",
+  "sequence": {
+    "mirrorActors": false,
+    "showSequenceNumbers": true
+  },
+  "themeVariables": {
+    "background": "#0f172a",
+    "primaryColor": "#1f2937",
+    "primaryTextColor": "#e5e7eb",
+    "primaryBorderColor": "#22c55e",
+    "actorBkg": "#172554",
+    "actorTextColor": "#dbeafe",
+    "actorBorder": "#60a5fa",
+    "lineColor": "#94a3b8",
+    "fontFamily": "Segoe UI, Arial"
+  }
+}}%%
+
+sequenceDiagram
+    actor User as User / .NET Core
+    participant API as FastAPI /api/v1/chat
+    participant Filter as ConversationIngressFilter
+    participant Auth as UserResolver + RateLimit
+    participant Router as Chat Router
+    participant Fast as SQL Fast Path
+    participant Agent as Vanna Agent
+    participant Tools as ToolRegistry
+    participant Policy as SQL/PII/Result Policies
+    participant DB as SQL Server
+    participant Memory as ChromaDB Memory
+    participant Audit as Audit Logger
+
+    User->>API: POST question + metadata
+    API->>Filter: validate question + metadata
+    alt unsafe input
+        Filter-->>API: reject code/message
+        API-->>User: HTTP 400
+    else valid input
+        API->>Auth: resolve user + rate limit
+        alt auth failed
+            Auth-->>API: unauthorized
+            API-->>User: HTTP 401
+        else authorized
+            API->>Router: choose execution path
+            alt SQL Fast Path
+                Router->>Fast: enhance context + generate SQL
+                Fast->>Policy: validate generated SQL
+                Policy->>DB: execute SELECT
+                DB-->>Policy: rows
+                Policy-->>Fast: safe result
+                Fast->>Audit: record activity
+                Fast-->>API: ChatResponse
+            else Vanna Agent Path
+                Router->>Agent: run agent with context
+                Agent->>Memory: retrieve relevant memories
+                Memory-->>Agent: memory hits
+                Agent->>Tools: choose tool
+                alt Run SQL Tool
+                    Tools->>Policy: validate + execute SQL
+                    Policy->>DB: execute SELECT
+                    DB-->>Policy: rows
+                    Policy-->>Tools: safe ToolResult
+                else Schema/Profile/Memory Tool
+                    Tools->>Memory: search/save/retrieve
+                    Memory-->>Tools: ToolResult
+                end
+                Tools-->>Agent: tool result
+                Agent->>Audit: tool/audit event
+                Agent-->>API: final answer
+            end
+            API-->>User: JSON answer + sql + table + metadata
+        end
+    end

@@ -140,6 +140,21 @@ def _operator_error_hint(exc: BaseException) -> str:
     return type(exc).__name__
 
 
+def _user_safe_sql_error(exc: pyodbc.Error) -> str:
+    """Map common SQL Server errors to short user-safe messages."""
+
+    raw = " ".join(str(a) for a in exc.args if a is not None)
+    upper = raw.upper()
+    if "8120" in raw or "GROUP BY" in upper:
+        return (
+            "Invalid SELECT for GROUP BY: each non-aggregated column must be in "
+            "GROUP BY or wrapped in SUM/COUNT/MAX/MIN/AVG."
+        )
+    if "207" in raw or "INVALID COLUMN NAME" in upper:
+        return "A column or table name in the query is not valid for this database."
+    return "The query could not be executed. Check your query and try again."
+
+
 def _is_timeout_error(exc: pyodbc.Error) -> bool:
     for arg in exc.args:
         if isinstance(arg, str) and _TIMEOUT_SQLSTATE_RE.search(arg):
@@ -414,7 +429,7 @@ class MssqlRunner:
                 error_message=_operator_error_hint(exc),
             )
             raise RunnerError(
-                "The query could not be executed. Check your query and try again.",
+                _user_safe_sql_error(exc),
                 debug_hint=_operator_error_hint(exc),
             ) from exc
 

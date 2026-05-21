@@ -170,6 +170,8 @@ def build_vanna_runtime(
         vanna_search = _open_vanna_search_memory(chroma_client, profile.meta.profile_id)
         memory_search = MultiCollectionSearcher(chunk_memory, vanna_search)
 
+    # Vanna-native layer: VannaAgent, vanna.core.registry.ToolRegistry, memory tools.
+    # VAI custom layer: PolicySqlRunner, VaiRunSqlTool, ProfileLlmContextEnhancer, JsonlVannaAuditLogger.
     audit = JsonlVannaAuditLogger()
     registry = ToolRegistry(audit_logger=audit)
 

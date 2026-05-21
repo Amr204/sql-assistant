@@ -1,0 +1,367 @@
+%%{init: {
+  "theme": "base",
+  "flowchart": {
+    "curve": "basis",
+    "htmlLabels": true,
+    "nodeSpacing": 45,
+    "rankSpacing": 60
+  },
+  "themeVariables": {
+    "background": "#0f172a",
+    "primaryColor": "#1e293b",
+    "primaryTextColor": "#e5e7eb",
+    "primaryBorderColor": "#22c55e",
+    "lineColor": "#94a3b8",
+    "fontFamily": "Segoe UI, Arial"
+  }
+}}%%
+
+flowchart TD
+
+%% ======================================================
+%% EXTERNAL USERS / CLIENTS
+%% ======================================================
+
+subgraph EXT["🌐 External Consumers / العملاء الخارجيون"]
+    direction TB
+    U1("<b>React/Vite UI</b><br/>واجهة التطوير الحالية")
+    U2("<b>.NET Core System</b><br/>النظام الأساسي المستقبلي")
+    U3("<b>API Client</b><br/>Postman / Service / Integration")
+    U4("<b>Admin / Developer</b><br/>تشغيل، فحص، seed، debug")
+end
+
+%% ======================================================
+%% FASTAPI ENTRYPOINTS
+%% ======================================================
+
+subgraph API["🚪 FastAPI API Boundary / نقطة دخول النظام"]
+    direction TB
+
+    A0("<b>src/vai_agent/main.py</b><br/>Application Entrypoint")
+    A1("<b>bootstrap.py</b><br/>create_app + lifespan + routers")
+    A2("<b>/api/v1/chat</b><br/>السؤال الرئيسي")
+    A3("<b>/api/v1/tools</b><br/>عرض الأدوات المتاحة")
+    A4("<b>/api/v1/memory</b><br/>ذاكرة الوكيل")
+    A5("<b>/api/v1/profile</b><br/>معلومات profile/schema")
+    A6("<b>/health /ready</b><br/>تشغيل وجاهزية")
+    A7("<b>/agent/tools/*</b><br/>Legacy Debug Route")
+end
+
+EXT --> API
+
+U1 --> A2
+U2 --> A2
+U3 --> A2
+U4 --> A6
+U4 --> A7
+
+A0 --> A1
+A1 --> A2
+A1 --> A3
+A1 --> A4
+A1 --> A5
+A1 --> A6
+A1 --> A7
+
+%% ======================================================
+%% COMMON INGRESS SECURITY
+%% ======================================================
+
+subgraph ING["🛡️ Common Ingress Layer / فلترة الطلب قبل الذكاء"]
+    direction TB
+
+    I1("<b>ChatRequest Pydantic</b><br/>تحقق أولي من schema")
+    I2("<b>ConversationIngressFilter</b><br/>empty / length / metadata / prompt-injection")
+    I3{"Request allowed?"}
+    I4("<b>HTTP 400</b><br/>رفض مبكر بدون LLM")
+    I5("<b>Rate Limiter</b><br/>user/ip/group/concurrency")
+    I6("<b>User Resolver</b><br/>dev/header/future_oidc")
+    I7{"User resolved?"}
+    I8("<b>HTTP 401</b><br/>مصادقة مطلوبة")
+    I9("<b>require_runtime</b><br/>Vanna runtime جاهز؟")
+    I10{"Runtime ready?"}
+    I11("<b>HTTP 503</b><br/>Agent not ready")
+end
+
+A2 --> I1 --> I2 --> I3
+I3 -- "No" --> I4
+I3 -- "Yes" --> I5 --> I6 --> I7
+I7 -- "No" --> I8
+I7 -- "Yes" --> I9 --> I10
+I10 -- "No" --> I11
+
+%% ======================================================
+%% CHAT ROUTING
+%% ======================================================
+
+subgraph ROUTE["🧭 Chat Routing / اختيار مسار الإجابة"]
+    direction TB
+
+    R1("<b>api/v1/chat.py</b><br/>orchestrates request")
+    R2{"sqlfast enabled?"}
+    R3{"Question suitable<br/>for SQL Fast Path?"}
+    R4("<b>SQL Fast Path</b><br/>أسرع، أقل tool loop")
+    R5("<b>Vanna Agent Path</b><br/>أعمق، أدوات وذاكرة")
+    R6{"Client disconnected?"}
+    R7("<b>Cancelled Response</b><br/>إلغاء بدون crash")
+end
+
+I10 -- "Yes" --> R1
+R1 --> R6
+R6 -- "Yes" --> R7
+R6 -- "No" --> R2
+R2 -- "Yes" --> R3
+R3 -- "Yes" --> R4
+R2 -- "No" --> R5
+R3 -- "No / fallback" --> R5
+
+%% ======================================================
+%% SQL FAST PATH
+%% ======================================================
+
+subgraph FAST["⚡ SQL Fast Path / المسار السريع"]
+    direction TB
+
+    F1("<b>sqlfast/service.py</b><br/>Fast orchestration")
+    F2("<b>ContextEnhancer</b><br/>schema + glossary + examples")
+    F3("<b>prompt_builder.py</b><br/>compact SQL prompt")
+    F4("<b>sql_generator.py</b><br/>OpenAI-compatible API")
+    F5{"Model returns<br/>valid SQL JSON?"}
+    F6("<b>Fast path failed</b><br/>fallback to Vanna")
+    F7("<b>Generated SQL</b><br/>SELECT candidate")
+end
+
+R4 --> F1
+F1 --> F2 --> F3 --> F4 --> F5
+F5 -- "No" --> F6 --> R5
+F5 -- "Yes" --> F7
+
+%% ======================================================
+%% VANNA AGENT PATH
+%% ======================================================
+
+subgraph VANNA["🤖 Vanna Agent Path / المسار الكامل"]
+    direction TB
+
+    V1("<b>GuardedChatHandler</b><br/>حماية داخلية + cancellation")
+    V2("<b>VannaAgent</b><br/>Agent runtime")
+    V3("<b>ToolRegistry</b><br/>Vanna-native registry")
+    V4("<b>ProfileLlmContextEnhancer</b><br/>RAG context injection")
+    V5("<b>ModelLlmService</b><br/>OpenAI-compatible LLM")
+    V6("<b>RetryLlmService</b><br/>retry/fallback")
+    V7{"Agent chooses tool?"}
+    V8("<b>Final natural answer</b><br/>رد المستخدم")
+end
+
+R5 --> V1 --> V2
+V2 --> V3
+V2 --> V4
+V2 --> V6 --> V5
+V2 --> V7
+V7 -- "No tool" --> V8
+
+%% ======================================================
+%% VANNA TOOLS
+%% ======================================================
+
+subgraph TOOLS["🧰 Registered Tools / أدوات Vanna"]
+    direction TB
+
+    T1("<b>VaiRunSqlTool</b><br/>تشغيل SQL آمن")
+    T2("<b>ExplainSchemaVannaTool</b><br/>شرح جدول/عمود")
+    T3("<b>ProfileSearchVannaTool</b><br/>بحث في profile knowledge")
+    T4("<b>SearchSavedCorrectToolUsesTool</b><br/>استرجاع استخدامات صحيحة")
+    T5("<b>SaveQuestionToolArgsTool</b><br/>حفظ سؤال + SQL")
+    T6("<b>SaveTextMemoryTool</b><br/>حفظ ذاكرة نصية")
+end
+
+V3 --> T1
+V3 --> T2
+V3 --> T3
+V3 --> T4
+V3 --> T5
+V3 --> T6
+
+V7 -- "run_sql" --> T1
+V7 -- "explain_schema" --> T2
+V7 -- "profile_search" --> T3
+V7 -- "memory search/save" --> T4
+V7 -- "auto learn" --> T5
+V7 -- "manual memory" --> T6
+
+%% ======================================================
+%% RAG / KNOWLEDGE / MEMORY
+%% ======================================================
+
+subgraph RAG["🧠 RAG + Knowledge + Memory / المعرفة والذاكرة"]
+    direction TB
+
+    K1("<b>profiles/&lt;profile&gt;</b><br/>tables / relationships / rules / examples")
+    K2("<b>knowledge/profile_loader.py</b><br/>تحميل YAML profile")
+    K3("<b>ContextEnhancer</b><br/>table scoring + examples + security")
+    K4("<b>memory/chunking.py</b><br/>early chunks only")
+    K5("<b>memory_factory.py</b><br/>Chroma profile memory")
+    K6("<b>EnhancedChromaAgentMemory</b><br/>Vanna tool memory")
+    K7("<b>ChromaDB</b><br/>Vector DB persistent storage")
+    K8("<b>Embedding Model</b><br/>semantic search vectors")
+end
+
+K1 --> K2
+K2 --> K3
+K2 --> K4
+K4 --> K5 --> K7
+K6 --> K7
+K5 --> K8
+K6 --> K8
+
+F2 --> K3
+V4 --> K3
+T3 --> K5
+T4 --> K6
+T5 --> K6
+T6 --> K6
+
+%% ======================================================
+%% SQL SECURITY PIPELINE
+%% ======================================================
+
+subgraph SEC["🔐 SQL Security Pipeline / خط حماية SQL"]
+    direction TB
+
+    S1("<b>PolicySqlRunner</b><br/>بوابة التنفيذ")
+    S2("<b>SqlPolicyEngine</b><br/>SELECT-only / deny DML / TOP limit")
+    S3{"SQL allowed?"}
+    S4("<b>PolicyRejectedError</b><br/>رفض الاستعلام")
+    S5("<b>PiiPolicyEngine</b><br/>PII rules + column checks")
+    S6{"PII allowed?"}
+    S7("<b>PII Rejected</b><br/>رفض بيانات حساسة")
+    S8("<b>MssqlRunner</b><br/>pyodbc + connection pool")
+    S9("<b>SQL Server</b><br/>MSSQL database")
+    S10("<b>ResultPolicy</b><br/>min group / masking / privacy")
+    S11("<b>SqlResultPresenter</b><br/>تهيئة الجدول للمستخدم")
+end
+
+F7 --> S1
+T1 --> S1
+S1 --> S2 --> S3
+S3 -- "No" --> S4
+S3 -- "Yes" --> S5 --> S6
+S6 -- "No" --> S7
+S6 -- "Yes" --> S8 --> S9 --> S8 --> S10 --> S11
+
+%% ======================================================
+%% OUTPUTS
+%% ======================================================
+
+subgraph OUT["📤 Response Composition / بناء الرد النهائي"]
+    direction TB
+
+    O1("<b>ChatResponse</b><br/>answer + sql + table + metadata")
+    O2("<b>SQL Preview</b><br/>rows preview فقط")
+    O3("<b>Human Answer</b><br/>شرح مختصر للمستخدم")
+    O4("<b>Errors</b><br/>ApiError structured")
+    O5("<b>Returned to .NET / UI</b><br/>JSON API contract")
+end
+
+S11 --> O1
+V8 --> O1
+S4 --> O4
+S7 --> O4
+F6 --> R5
+O1 --> O2
+O1 --> O3
+O1 --> O5
+O4 --> O5
+
+%% ======================================================
+%% AUDIT / OBSERVABILITY / LIFECYCLE
+%% ======================================================
+
+subgraph OPS["📊 Audit + Observability + Lifecycle / التشغيل والمراقبة"]
+    direction TB
+
+    P1("<b>ActivityRecorder</b><br/>chat activity JSONL")
+    P2("<b>JsonlVannaAuditLogger</b><br/>tool/audit events")
+    P3("<b>emit_tool_audit</b><br/>tool execution log")
+    P4("<b>observability.py</b><br/>runtime_step timing")
+    P5("<b>FastAPI lifespan</b><br/>shutdown resources")
+    P6("<b>close_sql_generator_client</b><br/>إغلاق httpx client")
+    P7("<b>close DB pool</b><br/>إغلاق الاتصالات")
+    P8("<b>/ready</b><br/>readiness state")
+end
+
+R1 --> P1
+V2 --> P2
+T1 --> P3
+T2 --> P3
+T3 --> P3
+F1 --> P4
+S1 --> P4
+A1 --> P5
+P5 --> P6
+P5 --> P7
+A6 --> P8
+
+%% ======================================================
+%% USE CASE ENTRY LABELS
+%% ======================================================
+
+subgraph UC["✅ Main Use Cases / حالات الاستخدام الأساسية"]
+    direction TB
+
+    UC1("<b>UC-01 Ask Data Question</b><br/>سؤال طبيعي → SQL → نتيجة")
+    UC2("<b>UC-02 Fast SQL Answer</b><br/>مسار سريع إذا مناسب")
+    UC3("<b>UC-03 Full Agent Answer</b><br/>LLM + tools + memory")
+    UC4("<b>UC-04 Explain Schema</b><br/>شرح جدول أو عمود")
+    UC5("<b>UC-05 Search Profile</b><br/>بحث في وصف القاعدة")
+    UC6("<b>UC-06 Save / Retrieve Memory</b><br/>تعلم من سؤال صحيح")
+    UC7("<b>UC-07 Reject Unsafe Input</b><br/>رفض prompt injection / payload ضخم")
+    UC8("<b>UC-08 Reject Unsafe SQL</b><br/>DML / DROP / PII / privacy")
+    UC9("<b>UC-09 Health & Readiness</b><br/>فحص التشغيل")
+    UC10("<b>UC-10 Shutdown Cleanly</b><br/>إغلاق الموارد")
+end
+
+UC1 --> A2
+UC2 --> R4
+UC3 --> R5
+UC4 --> T2
+UC5 --> T3
+UC6 --> T4
+UC6 --> T5
+UC6 --> T6
+UC7 --> I2
+UC8 --> S2
+UC8 --> S5
+UC8 --> S10
+UC9 --> A6
+UC10 --> P5
+
+%% ======================================================
+%% STYLING
+%% ======================================================
+
+classDef external fill:#172554,stroke:#60a5fa,stroke-width:2px,color:#dbeafe;
+classDef api fill:#1e293b,stroke:#38bdf8,stroke-width:2px,color:#e0f2fe;
+classDef guard fill:#3b0764,stroke:#d946ef,stroke-width:2px,color:#fae8ff;
+classDef decision fill:#713f12,stroke:#facc15,stroke-width:2px,color:#fef9c3;
+classDef fast fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#d1fae5;
+classDef agent fill:#312e81,stroke:#818cf8,stroke-width:2px,color:#e0e7ff;
+classDef tool fill:#0f766e,stroke:#5eead4,stroke-width:2px,color:#ccfbf1;
+classDef rag fill:#14532d,stroke:#86efac,stroke-width:2px,color:#dcfce7;
+classDef security fill:#7f1d1d,stroke:#f87171,stroke-width:2px,color:#fee2e2;
+classDef output fill:#164e63,stroke:#67e8f9,stroke-width:2px,color:#cffafe;
+classDef ops fill:#4c1d95,stroke:#c084fc,stroke-width:2px,color:#f3e8ff;
+classDef error fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fee2e2;
+
+class U1,U2,U3,U4 external;
+class A0,A1,A2,A3,A4,A5,A6,A7 api;
+class I1,I2,I4,I5,I6,I8,I9,I11 guard;
+class I3,I7,I10,R2,R3,R6,F5,S3,S6,V7 decision;
+class R4,F1,F2,F3,F4,F6,F7 fast;
+class R5,V1,V2,V3,V4,V5,V6,V8 agent;
+class T1,T2,T3,T4,T5,T6 tool;
+class K1,K2,K3,K4,K5,K6,K7,K8 rag;
+class S1,S2,S4,S5,S7,S8,S9,S10,S11 security;
+class O1,O2,O3,O5 output;
+class O4,I4,I8,I11,S4,S7 error;
+class P1,P2,P3,P4,P5,P6,P7,P8 ops;

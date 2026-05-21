@@ -56,6 +56,7 @@ class SqlFastOutcome(StrEnum):
     """SqlFastOutcome."""
     SUCCESS = "success"
     REJECT_UNSAFE = "reject_unsafe"
+    EXECUTION_FAILED = "execution_failed"
     FALLBACK_VANNA = "fallback_vanna"
 
 
@@ -257,8 +258,40 @@ class SqlFastService:
             )
         except QueryRejectedError as exc:
             phase["sql_ms"] = int((perf_counter() - t_sql) * 1000)
-            logger.info("sql fast path execution blocked (%s); falling back to Vanna", exc)
-            return SqlFastResult(SqlFastOutcome.FALLBACK_VANNA, None, phase)
+            logger.warning(
+                "sql fast path execution failed: %s",
+                exc,
+                extra={"sql_preview": sql[:200]},
+            )
+            err_text = str(exc).strip() or "Query execution failed."
+            return SqlFastResult(
+                SqlFastOutcome.EXECUTION_FAILED,
+                ChatResponse(
+                    conversation_id=conversation_id,
+                    request_id=request_id,
+                    question=question,
+                    answer=(
+                        "فشل تنفيذ الاستعلام على قاعدة البيانات. "
+                        "راجع SQL المُولَّد أدناه — غالبًا يلزم إضافة GROUP BY أو استخدام SUM/COUNT للأعمدة غير المُجمّعة."
+                    ),
+                    sql=sql,
+                    explanation=payload.explanation or None,
+                    confidence=payload.confidence,
+                    table=None,
+                    warnings=[err_text],
+                    errors=[
+                        ApiError(
+                            code="SQL_EXECUTION",
+                            message=err_text,
+                            details={},
+                        ),
+                    ],
+                    execution_ms=phase["sql_ms"],
+                    path="sql_fast",
+                    timings={**phase, "present_ms": 0},
+                ),
+                phase,
+            )
 
         phase["sql_ms"] = int((perf_counter() - t_sql) * 1000)
 

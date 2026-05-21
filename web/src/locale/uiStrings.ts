@@ -50,6 +50,9 @@ export const ui = {
   tablePreviewLimited: "عرض جزئي للصفوف",
   chatMessages: "سجل المحادثة",
   summary: "الملخص",
+  noSqlResults: "لم تُعرض نتائج SQL",
+  noSqlResultsHint:
+    "لم يُنفَّذ استعلام على قاعدة البيانات أو لم تُرجع الأداة جدولاً. تحقق من MODEL_PROVIDER و MODEL_API_KEY في .env.",
   explanation: "الشرح",
   exportCsv: "تصدير CSV",
   copy: "نسخ",

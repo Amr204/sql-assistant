@@ -22,6 +22,8 @@ export class ApiError extends Error {
   }
 }
 
+export { formatApiErrorPayload } from "../lib/formatApiError";
+
 function linkAbort(target: AbortController, source: AbortSignal): void {
   if (source.aborted) {
     target.abort();
@@ -71,11 +73,14 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     }
 
     if (validate) {
-      return validate(payload) as T;
+      try {
+        return validate(payload) as T;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Invalid response";
+        throw new ApiError(msg, response.status, payload);
+      }
     }
     return payload as T;
-  } catch (e) {
-    throw e;
   } finally {
     clearTimeout(timer);
   }

@@ -8,12 +8,14 @@ import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import type { ChatMessage, SqlTable } from "../api/types";
 
 const STORAGE_KEY = "sql-assistant-messages";
-const STORAGE_VERSION = 2;
+const STORAGE_VERSION = 3;
 const MAX_MESSAGES = 50;
+const MAX_STORED_ROWS_PER_TABLE = 200;
 const TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 type StoredTableMeta = {
   columns: string[];
+  rows: Array<Record<string, unknown>>;
   row_count: number;
   truncated: boolean;
 };
@@ -44,6 +46,7 @@ function toStored(msg: ChatMessage): StoredMessage {
   const storedTable: StoredTableMeta | null | undefined = table
     ? {
         columns: table.columns,
+        rows: table.rows.slice(0, MAX_STORED_ROWS_PER_TABLE),
         row_count: table.row_count,
         truncated: table.truncated,
       }
@@ -70,7 +73,7 @@ function fromStored(msg: StoredMessage): ChatMessage {
   const table: SqlTable | null | undefined = meta
     ? {
         columns: meta.columns,
-        rows: [],
+        rows: Array.isArray(meta.rows) ? meta.rows : [],
         row_count: meta.row_count,
         truncated: meta.truncated,
       }

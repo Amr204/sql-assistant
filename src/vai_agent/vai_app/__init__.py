@@ -1,18 +1,18 @@
-"""Agent application layer: registry, factory, orchestrator, context."""
+"""VAI context support package.
 
-from vai_agent.vai_app.agent_factory import Agent, build_agent
+The current Vanna runtime only depends on context_enhancer from this package.
+Legacy agent_factory/tool_registry are intentionally not re-exported here to
+avoid import-time coupling and accidental dependency on removed legacy modules.
+"""
+
 from vai_agent.vai_app.context_enhancer import (
     ContextEnhancer,
     ContextEnhancerConfig,
     EnhancementResult,
 )
-from vai_agent.vai_app.tool_registry import ToolRegistry
 
 __all__ = [
-    "Agent",
     "ContextEnhancer",
     "ContextEnhancerConfig",
     "EnhancementResult",
-    "ToolRegistry",
-    "build_agent",
 ]
